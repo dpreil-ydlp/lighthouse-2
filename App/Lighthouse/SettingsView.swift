@@ -1,0 +1,363 @@
+import AppKit
+import LighthouseCore
+import SwiftUI
+
+/// Settings (SPEC §6.6).
+struct SettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
+            SourcesSettings().tabItem { Label("Sources", systemImage: "tray.full") }
+            UsageSettingsView()
+                .tabItem { Label("Usage", systemImage: "gauge.with.dots.needle.33percent") }
+            OpenInSettings().tabItem { Label("Open-in", systemImage: "arrow.up.forward.app") }
+            NotificationSettingsView()
+                .tabItem { Label("Notifications", systemImage: "bell") }
+            SummarySettingsView()
+                .tabItem { Label("Summaries", systemImage: "sparkles") }
+            ProjectsSettings().tabItem { Label("Projects", systemImage: "folder") }
+        }
+        .frame(width: 520, height: 380)
+    }
+}
+
+struct StagedSettings: View {
+    let title: String
+    let detail: String
+    var body: some View {
+        Form {
+            Section(title) { Text(detail).foregroundStyle(.secondary) }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct GeneralSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Form {
+            Section("General") {
+                Toggle("Show the lowest usage % left in the menu bar", isOn: Binding(
+                    get: { model.usageSettings.showWorstPercent }, set: { model.setShowWorstPercent($0) }))
+                let _ = model.loginItemTick
+                Toggle("Open Lighthouse at login", isOn: Binding(get: { LoginItem.isOn }, set: { model.setLoginItem($0) }))
+                if LoginItem.status == .requiresApproval {
+                    Text(LoginItem.statusText).font(.system(size: 11)).foregroundStyle(.secondary)
+                } else if LoginItem.lastChangeFailed {
+                    Text("Could not change this. Use System Settings › General › Login Items.").font(.system(size: 11)).foregroundStyle(.orange)
+                }
+                Picker("Toggle panel hotkey", selection: Binding(get: { model.appSettings.hotkey }, set: { model.setHotkey($0) })) {
+                    ForEach(HotkeyChoice.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                if model.hotkeyStatus != 0 {
+                    Text("This shortcut is taken by another app. Choose another.").font(.system(size: 11)).foregroundStyle(.orange)
+                } else if model.appSettings.hotkey == .optionSpace && Hotkey.chatGPTInstalled {
+                    Text("ChatGPT also opens on ⌥Space. Choose another shortcut here, or change ChatGPT's.")
+                        .font(.system(size: 11)).foregroundStyle(.orange)
+                }
+                LabeledContent("Version") {
+                    Text(AppIdentity.versionLine()).textSelection(.enabled).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                LabeledContent("Store") {
+                    Text(model.storePath).textSelection(.enabled).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+            }
+            Section("Privacy") {
+                Text("Lighthouse reads session logs in place and stores metadata only: paths, IDs, titles, times, counters and states. It never stores message text, opens no network port, and never controls an agent. With usage turned on, it sends one HTTPS request per provider every 2 minutes, only to api.anthropic.com or chatgpt.com. With summaries turned on (Settings › Summaries), recent conversation text goes to the provider you chose; only the summary is stored.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct SourcesSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Form {
+            ForEach(model.snapshot.statuses, id: \.source) { status in
+                Section(status.source.displayName) {
+                    if let error = status.error {
+                        // One line per source outage (SPEC §8, §10); outages never notify.
+                        Label("Source unavailable · \(error)", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    }
+                    LabeledContent("Last read", value: "\(Age.short(status.lastReadAt, now: model.now)) ago")
+                    LabeledContent("Threads", value: "\(status.threadCount)")
+                    if status.source == .t3 {
+                        LabeledContent("Coverage", value: status.filesIndexed > 0 ? "Read in place, read-only" : "Not read yet")
+                    } else {
+                        LabeledContent("Coverage", value: "\(status.filesIndexed) of \(status.filesInWindow) files indexed (last 30 days)")
+                    }
+                    if status.filesNotIndexed > 0 {
+                        LabeledContent("Not indexed", value: "\(status.filesNotIndexed) older files")
+                    }
+                    if status.skippedLines > 0 {
+                        LabeledContent("Skipped lines", value: "\(status.skippedLines) over 1 MB")
+                    }
+                }
+            }
+            if let error = model.storeError {
+                Section("Store") { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct OpenInSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(OwningApp.allCases, id: \.self) { app in
+                    LabeledContent(app.displayName) {
+                        HStack {
+                            let current = model.overrides[app]
+                            Text(current?.appName ?? "\(TargetApp.forOwner(app).name) (default)")
+                                .foregroundStyle(.secondary)
+                            Button("Choose…") { choose(for: app) }
+                            if current != nil { Button("Reset") { model.setOverride(nil, for: app) } }
+                        }
+                    }
+                }
+            } header: {
+                Text("Open threads in")
+            } footer: {
+                Text("An override opens the thread's folder in the chosen app and never runs a command. Codex and Claude links are app-only in this build: Lighthouse opens the app and offers “Copy session ID”.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func choose(for app: OwningApp) {
+        let panel = NSOpenPanel()
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        panel.prompt = "Use"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        model.setOverride(OpenOverride(appPath: url.path, appName: url.deletingPathExtension().lastPathComponent), for: app)
+    }
+}
+
+struct ProjectsSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Form {
+            Section("Bindings") {
+                if model.bindings.isEmpty {
+                    Text("No bindings. Use “Bind to project…” on an Unassigned row.").foregroundStyle(.secondary)
+                }
+                ForEach(model.bindings, id: \.folder) { binding in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(binding.folder).font(.system(size: 12)).lineLimit(1).truncationMode(.head)
+                            Text("→ \(binding.projectRoot)").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
+                        }
+                        Spacer()
+                        Button("Remove") { model.removeBinding(binding.folder) }
+                    }
+                }
+            }
+            Section("Hidden folders") { Text("Arrives with onboarding in M4. Use Archive meanwhile.").foregroundStyle(.secondary) }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// Settings › Usage (SPEC §6.6): enable each provider; credential status; retry.
+struct UsageSettingsView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Form {
+            ForEach(Provider.allCases, id: \.self) { provider in
+                Section {
+                    Toggle("Show \(provider.displayName) usage", isOn: Binding(
+                        get: { model.usageSettings.enabled.contains(provider) }, set: { model.setUsage(provider, enabled: $0) }))
+                    if let reading = model.usage(for: provider) {
+                        LabeledContent("Status", value: status(reading))
+                        LabeledContent("Last success", value: reading.lastSuccessAt.map { "\(Age.short($0, now: Date())) ago" } ?? "None yet")
+                        LabeledContent("Last attempt", value: reading.lastAttemptAt.map { "\(Age.short($0, now: Date())) ago" } ?? "Not yet")
+                        Button("Retry now") { model.retryUsage(provider) }
+                    }
+                } header: {
+                    Text(provider.displayName)
+                } footer: {
+                    Text(footer(provider)).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+            }
+            Section {
+                Text("Tokens stay in the Keychain or their source file and in memory while Lighthouse runs. They are never stored, logged, or refreshed. An expired or rejected token shows “Sign in again”.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func status(_ reading: ProviderUsage) -> String {
+        switch reading.status {
+        case .fresh: "Fresh"
+        case .stale: "Stale"
+        case .signInRequired: UsageWording.signIn(reading.provider)
+        case .unavailable(let reason): reason
+        }
+    }
+
+    private func footer(_ provider: Provider) -> String {
+        switch provider {
+        case .claude:
+            "Reads the Claude Code sign-in from the Keychain item “Claude Code-credentials”. macOS asks once; choose Always Allow. Requests go to api.anthropic.com."
+        case .codex:
+            "Reads the Codex CLI sign-in from ~/.codex/auth.json in place. Requests go to chatgpt.com."
+        }
+    }
+}
+
+/// Settings › Notifications (SPEC §8): opt-in, per-category switches, pause, Focus note.
+struct NotificationSettingsView: View {
+    @Environment(AppModel.self) private var model
+    @State private var systemStatus = "Checking…"
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Allow Lighthouse notifications", isOn: Binding(
+                    get: { model.appSettings.notificationsOn }, set: { model.setNotifications($0) }))
+                LabeledContent("macOS permission", value: systemStatus)
+                Toggle("Pause alerts", isOn: Binding(get: { model.appSettings.alertsPaused }, set: { model.setAlertsPaused($0) }))
+            } footer: {
+                Text("Pause stops delivery only; the panel still shows what needs you. Notifications use the standard level, so your Focus settings decide when they appear. A notification never offers an agent action; clicking it opens this panel.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Section("Notify me about") {
+                ForEach(NotificationCategory.allCases, id: \.self) { category in
+                    Toggle(category.title, isOn: Binding(
+                        get: { model.appSettings.categories.contains(category) }, set: { model.setCategory(category, $0) }))
+                }
+                .disabled(!model.appSettings.notificationsOn)
+            }
+        }
+        .formStyle(.grouped)
+        .task(id: model.notifierStatusTick) {
+            await model.notifier.refreshStatus()
+            systemStatus = switch model.notifier.status {
+            case .authorized, .provisional: "Allowed"
+            case .denied: "Denied · System Settings › Notifications › Lighthouse"
+            case .notDetermined: Notifier.available ? "Not asked yet" : "Unavailable (not an app bundle)"
+            @unknown default: "Unknown"
+            }
+        }
+    }
+}
+
+/// Settings › Summaries (M8, SPEC 2.9 §6.6): provider (Off / Claude / ChatGPT), model, hourly cap,
+/// what is sent, and recent activity (counts only).
+struct SummarySettingsView: View {
+    @Environment(AppModel.self) private var model
+    @State private var modelText = ""
+
+    private var settings: SummarySettings { model.summarySettings }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Summarize threads with", selection: Binding(get: { settings.provider }, set: { provider in
+                    var next = settings
+                    next.provider = provider
+                    model.setSummarySettings(next)
+                })) {
+                    Text("Off").tag(SummaryProvider.off)
+                    Text("Claude (claude CLI)").tag(SummaryProvider.claude)
+                    Text("ChatGPT (codex CLI)").tag(SummaryProvider.chatgpt)
+                }
+                .pickerStyle(.radioGroup)
+                if settings.isOn {
+                    LabeledContent("Model") {
+                        HStack(spacing: 6) {
+                            TextField("Model", text: $modelText, prompt: Text(SummarySettings.defaultModel(settings.provider) ?? ""))
+                                .textFieldStyle(.roundedBorder)
+                                .labelsHidden()
+                                .frame(width: 170)
+                                .onSubmit(commitModel)
+                            if modelText != SummarySettings.defaultModel(settings.provider) {
+                                Button("Use default") {
+                                    modelText = SummarySettings.defaultModel(settings.provider) ?? ""
+                                    commitModel()
+                                }
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+                    if !SummarySettings.validModel(modelText) && !modelText.isEmpty {
+                        Text("Letters, digits and . _ : / - only.").font(.system(size: 11)).foregroundStyle(.orange)
+                    }
+                    LabeledContent("CLI", value: model.summaryCLI(settings.provider)
+                        ?? "Not found. Install and sign in to the \(settings.provider.cliName ?? "") CLI.")
+                }
+                Stepper("At most \(settings.hourlyCap) calls per hour", value: Binding(get: { settings.hourlyCap }, set: { cap in
+                    var next = settings
+                    next.hourlyCap = cap
+                    model.setSummarySettings(next)
+                }), in: SummarySettings.capRange)
+                LabeledContent("Calls in the last hour", value: "\(model.summaryStatus.callsLastHour) of \(settings.hourlyCap)")
+                if let last = model.summaryStatus.last {
+                    LabeledContent("Last result", value: Self.outcome(last))
+                }
+                Button("Delete stored summaries") { model.clearSummaries() }
+                    .disabled(model.summaries.isEmpty)
+            } header: {
+                Text("Thread summaries")
+            } footer: {
+                Text("One line per active thread, refreshed after it changes and goes quiet for a minute (every 10 minutes while it keeps running). One call at a time; each stops after 60 seconds.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Section("What is sent") {
+                Text(Self.privacyNote(settings.provider))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { modelText = settings.model ?? "" }
+        .onChange(of: settings.provider) { _, _ in modelText = settings.model ?? "" }
+    }
+
+    private func commitModel() {
+        guard SummarySettings.validModel(modelText) else { return }
+        var next = settings
+        switch settings.provider {
+        case .off: return
+        case .claude: next.claudeModel = modelText
+        case .chatgpt: next.chatgptModel = modelText
+        }
+        model.setSummarySettings(next)
+    }
+
+    static func privacyNote(_ provider: SummaryProvider) -> String {
+        let base = "For each active thread, Lighthouse sends its title, project name, state and the last 24 KB of user and assistant text (no tool output, no file contents; known secret patterns are removed) through the CLI you are signed in to, under your own subscription. It starts no visible session and gives the model no tools. Lighthouse stores only the summary and a hash of what it sent; it never stores or logs the conversation text."
+        switch provider {
+        case .off: return "Off: nothing is read or sent. " + base
+        case .claude: return "On: text goes to Anthropic. " + base
+        case .chatgpt: return "On: text goes to OpenAI. " + base
+        }
+    }
+
+    static func outcome(_ outcome: SummaryService.Report.Outcome) -> String {
+        switch outcome {
+        case .made: "Summary made"
+        case .unchanged: "No new text; kept the last summary"
+        case .noTranscript: "No readable transcript"
+        case .cliMissing: "CLI not found"
+        case .scratchUnavailable: "Working folder not empty or not available"
+        case .notLaunched: "CLI did not start"
+        case .timedOut: "Stopped after 60 seconds"
+        case .failed: "CLI reported an error (signed in?)"
+        case .emptyAnswer: "Empty answer"
+        case .redactionOverBudget: "Skipped: text took too long to check; nothing sent"
+        }
+    }
+}

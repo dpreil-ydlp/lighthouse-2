@@ -1,0 +1,41 @@
+name: Lighthouse
+options:
+  bundleIdPrefix: com.lighthouse
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+packages:
+  LighthouseCore:
+    path: ..
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+targets:
+  Lighthouse:
+    type: application
+    platform: macOS
+    sources:
+      - Lighthouse
+    dependencies:
+      - package: LighthouseCore
+    info:
+      path: Lighthouse/Info.plist
+      properties:
+        CFBundleDisplayName: "Lighthouse 2"
+        CFBundleIconFile: AppIcon
+        CFBundleIconName: AppIcon
+        CFBundleShortVersionString: "0.0.2"
+        CFBundleVersion: "6"
+        LSUIElement: true
+        LSMinimumSystemVersion: "14.0"
+        NSHumanReadableCopyright: "Copyright © 2026 David Preil"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lighthouse.v2
+        PRODUCT_NAME: "Lighthouse 2"
+        ENABLE_HARDENED_RUNTIME: NO
+        GENERATE_INFOPLIST_FILE: NO

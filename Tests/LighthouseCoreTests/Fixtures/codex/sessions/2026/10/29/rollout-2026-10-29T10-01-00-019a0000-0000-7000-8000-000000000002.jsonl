@@ -1,0 +1,2 @@
+{"timestamp":"2026-10-29T10:01:00.000Z","ordinal":0,"type":"session_meta","payload":{"id":"019a0000-0000-7000-8000-000000000002","timestamp":"2026-10-29T10:01:00.000Z","cwd":"/Users/me/Projects/beta","originator":"Codex Desktop","source":{"subagent":{"thread_spawn":{"parent_thread_id":"019a0000-0000-7000-8000-000000000001","depth":1,"agent_nickname":"coder","agent_role":"default"}}}}}
+{"timestamp":"2026-10-29T10:01:01.000Z","ordinal":1,"type":"event_msg","payload":{"type":"task_started","turn_id":"t2"}}
