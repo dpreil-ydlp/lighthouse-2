@@ -553,3 +553,24 @@ public enum PanelFrame {
         return max(minimum, maxHeight - (contentHeight - scrollHeight))
     }
 }
+
+/// The main-page "what's happening" line for an active project (M10): the AI summary of the thread
+/// that matters most, else that thread's title. Quiet and dormant projects get none.
+public struct ProjectHeadline: Sendable, Hashable {
+    public var threadId: String
+    public var text: String
+    /// True when `text` is an AI summary rather than the thread title.
+    public var isSummary: Bool
+
+    /// Thread choice: a thread waiting for the owner when the project needs them, else the first
+    /// thread in shelf order (running, then waiting, then idle; most recent first).
+    public static func make(for project: ProjectSummary, summary: (SessionThread) -> ThreadSummary?) -> ProjectHeadline? {
+        guard [.needsYou, .working, .recent].contains(project.status) else { return nil }
+        let waiting = project.status == .needsYou ? project.threads.first { $0.state == .waitingForOwner } : nil
+        guard let thread = waiting ?? project.threads.first else { return nil }
+        if let s = summary(thread), !s.line1.isEmpty {
+            return ProjectHeadline(threadId: thread.id, text: s.line1, isSummary: true)
+        }
+        return ProjectHeadline(threadId: thread.id, text: thread.displayTitle, isSummary: false)
+    }
+}

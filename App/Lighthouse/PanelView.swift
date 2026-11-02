@@ -147,7 +147,7 @@ struct FooterView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(model.appSettings.alertsPaused ? Color.orange : Color.secondary)
-            .help(model.appSettings.alertsPaused ? "Resume Lighthouse notifications" : "Pause Lighthouse notifications; attention is still shown here")
+            .help(model.appSettings.alertsPaused ? "Resume notifications" : "Pause notifications")
             .accessibilityLabel(model.appSettings.alertsPaused ? "Alerts paused. Resume alerts" : "Pause alerts")
         }
         .font(.system(size: 11))

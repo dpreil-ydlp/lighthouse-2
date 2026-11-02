@@ -82,11 +82,8 @@ struct SummaryLine: View {
     let summary: ThreadSummary
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Image(systemName: "sparkles").font(.system(size: 9)).foregroundStyle(.purple.opacity(0.85))
-            Text(summary.line1).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-        }
-        .help("AI summary by \(SummaryWording.maker(summary)) · \(Age.short(summary.madeAt, now: model.now)) ago. It may be wrong.")
+        Text(summary.line1).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+        .help("AI summary · \(SummaryWording.maker(summary)) · \(Age.short(summary.madeAt, now: model.now)) ago")
     }
 }
 
@@ -137,16 +134,12 @@ struct ThreadDetail: View {
             Text(thread.displayTitle).font(.system(size: 13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
             if let summary = model.summary(for: thread) {
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Image(systemName: "sparkles").font(.system(size: 10)).foregroundStyle(.purple.opacity(0.85))
-                        Text(summary.line1).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
-                    }
+                    Text(summary.line1).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
                     if let line2 = summary.line2 {
                         Text(line2).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                            .padding(.leading, 14)
                     }
                     Text("AI summary · \(SummaryWording.maker(summary)) · \(Age.short(summary.madeAt, now: model.now)) ago")
-                        .font(.system(size: 10)).foregroundStyle(.tertiary).padding(.leading, 14)
+                        .font(.system(size: 10)).foregroundStyle(.tertiary)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("AI summary by \(SummaryWording.maker(summary)): \(summary.line1)\(summary.line2.map { ". \($0)" } ?? "")")
@@ -179,7 +172,7 @@ struct ThreadDetail: View {
                 if let stall = model.openStall(forThread: thread.id) {
                     Button("Acknowledge") { model.acknowledge(stall) }
                         .controlSize(.small)
-                        .help("Hide this stall alert. Nothing is sent to the agent.")
+                        .help("Dismiss")
                 }
                 if let id = action.sessionId {
                     Button("Copy session ID") { model.copySessionId(id) }
@@ -233,7 +226,7 @@ struct SubagentTree: View {
                         if let item = model.openItem(forSubagent: sub.id) {
                             Button("Acknowledge") { model.acknowledge(item) }
                                 .buttonStyle(.borderless).controlSize(.mini)
-                                .help("Hide this silence alert. Nothing is sent to the agent.")
+                                .help("Dismiss")
                         }
                     } else {
                         Text("\(sub.provider.displayName) · \(StateText.label(sub.state)) · \(Age.short(sub.lastActivityAt, now: model.now))")
@@ -267,7 +260,7 @@ struct ProjectPage: View {
         } else {
             VStack(spacing: 8) {
                 header(title: "Project", action: nil)
-                Text("This project is no longer observed.").font(.system(size: 12)).foregroundStyle(.secondary).padding()
+                Text("Project no longer observed").font(.system(size: 12)).foregroundStyle(.secondary).padding()
             }
         }
     }

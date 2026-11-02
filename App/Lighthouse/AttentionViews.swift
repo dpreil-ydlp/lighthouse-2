@@ -24,7 +24,7 @@ struct AttentionStrip: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.orange)
-                    .help("Show only projects where this applies")
+                    .help("Filter")
                     .accessibilityLabel("\(bucket.title), \(counts[bucket] ?? 0)\(selected ? ", filter on" : "")")
                 }
                 Spacer(minLength: 4)
@@ -74,7 +74,7 @@ struct OnboardingView: View {
         let _ = model.loginItemTick
         VStack(alignment: .leading, spacing: 12) {
             Text("Welcome to \(AppIdentity.name)").font(.system(size: 15, weight: .semibold))
-            Text("Lighthouse watches your agent sessions and never controls them. It reads session logs in place and keeps metadata only.")
+            Text("Read-only. Lighthouse never controls your agents.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(sources) { source in
@@ -90,27 +90,25 @@ struct OnboardingView: View {
                     .accessibilityElement(children: .combine)
                 }
             }
-            Text("Usage bars need one Keychain prompt for Claude (choose Always Allow). Turn usage on in Settings › Usage.")
-                .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Toggle("Notify me when an agent needs me or goes quiet", isOn: Binding(
+            Toggle("Notify me when agents need me", isOn: Binding(
                 get: { model.appSettings.notificationsOn }, set: { model.setNotifications($0) }))
                 .font(.system(size: 12))
             Toggle("Open Lighthouse at login", isOn: Binding(get: { LoginItem.isOn }, set: { model.setLoginItem($0) }))
                 .font(.system(size: 12))
             VStack(alignment: .leading, spacing: 2) {
-                Toggle("Summarize active threads with Claude Haiku", isOn: Binding(
+                Toggle("Summarize active threads", isOn: Binding(
                     get: { model.summarySettings.isOn }, set: { on in
                         var next = model.summarySettings
                         next.provider = on ? (next.provider == .off ? .claude : next.provider) : .off
                         model.setSummarySettings(next)
                     }))
                     .font(.system(size: 12))
-                Text("Sends recent conversation text to \(model.summarySettings.provider == .chatgpt ? "OpenAI" : "Anthropic") through your signed-in CLI. Only the summary is stored. Change provider and model in Settings › Summaries.")
+                Text("Sends recent conversation text to \(model.summarySettings.provider == .chatgpt ? "OpenAI" : "Anthropic").")
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
-                Text("Toggle this panel with \(model.appSettings.hotkey.label)."
-                     + (model.appSettings.hotkey == .optionSpace && Hotkey.chatGPTInstalled ? " ChatGPT uses it too; change it in Settings." : ""))
+                Text("\(model.appSettings.hotkey.label) opens this panel."
+                     + (model.appSettings.hotkey == .optionSpace && Hotkey.chatGPTInstalled ? " ChatGPT uses it too." : ""))
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Button("Done") { model.finishOnboarding() }

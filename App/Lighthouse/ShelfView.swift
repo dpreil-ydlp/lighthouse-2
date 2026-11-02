@@ -11,7 +11,7 @@ struct ShelfView: View {
             if model.isLoading && shelf.isEmpty {
                 ForEach(0..<4, id: \.self) { _ in PlaceholderRow() }
             } else if shelf.isEmpty {
-                Text("No projects observed yet — Lighthouse reads Claude Code, Codex and T3 sessions.")
+                Text("No projects yet")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .padding(Metrics.inset)
@@ -102,7 +102,7 @@ struct PlaceholderRow: View {
         }
         .padding(.horizontal, Metrics.inset + 22)
         .frame(height: 46, alignment: .leading)
-        .accessibilityHidden(true)
+            .accessibilityHidden(true)
     }
 }
 
@@ -115,6 +115,7 @@ struct ProjectRow: View {
     private var root: String { project.identity.root }
     private var expanded: Bool { model.expandedProject == root }
     private var pinned: Bool { model.prefs.pinned.contains(root) }
+    private var headline: ProjectHeadline? { ProjectHeadline.make(for: project) { model.summary(for: $0) } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -171,6 +172,7 @@ struct ProjectRow: View {
                     }
                 }
                 StatusLine(project: project)
+                if let headline { HeadlineLine(headline: headline) }
             }
         }
         .padding(.horizontal, Metrics.inset)
@@ -181,7 +183,7 @@ struct ProjectRow: View {
         .id(stop)
         .contextMenu { ProjectMenu(project: project) }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(project.identity.name), \(project.attention.first ?? StatusLine.text(for: project, now: model.now))")
+        .accessibilityLabel("\(project.identity.name), \(project.attention.first ?? StatusLine.text(for: project, now: model.now))\(headline.map { ", \($0.isSummary ? "AI summary" : "latest thread"): \($0.text)" } ?? "")")
     }
 
     private func toggle() {
@@ -261,6 +263,22 @@ struct StatusLine: View {
         case .recent: return "Recent activity · \(age) ago · \(threads)"
         case .quiet, .dormant: return "No activity for \(age) · \(threads)"
         }
+    }
+}
+
+/// Line 3 of an active project row (M10): what the main thread is doing, at a glance.
+struct HeadlineLine: View {
+    let headline: ProjectHeadline
+
+    var body: some View {
+        Text(headline.text)
+            .font(.system(size: 11))
+            .foregroundStyle(.primary.opacity(0.8))
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(headline.isSummary ? "AI summary" : "Latest thread")
+            .accessibilityHidden(true)
     }
 }
 

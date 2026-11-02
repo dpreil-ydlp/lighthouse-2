@@ -187,7 +187,7 @@ public struct SourceOutage: Sendable, Hashable {
     public func alert(now: Date) -> UsageAlert? {
         guard now.timeIntervalSince(failingSince) >= Self.alertAfter else { return nil }
         return UsageAlert(id: id, category: .source, provider: nil, title: "T3 unreadable · detection paused",
-                          body: "Lighthouse cannot read T3, so stalls and approvals there are not detected. Details in Settings › Sources.")
+                          body: "Stalls and approvals in T3 won’t be detected.")
     }
 }
 

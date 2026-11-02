@@ -233,7 +233,7 @@ enum LoginItem {
     nonisolated static func text(for status: SMAppService.Status) -> String {
         switch status {
         case .enabled: "On"
-        case .requiresApproval: "Needs approval in System Settings › General › Login Items"
+        case .requiresApproval: "Needs approval in System Settings"
         case .notRegistered, .notFound: "Off"
         @unknown default: "Unknown"
         }

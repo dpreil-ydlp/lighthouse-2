@@ -382,18 +382,15 @@ struct ProviderPage: View {
         let attribution = model.attribution(for: provider)
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("PROJECTS WITH LOCAL ACTIVITY ON \(provider.displayName.uppercased()) THIS WINDOW")
+                Text("PROJECTS THIS WINDOW")
                     .font(.system(size: 10, weight: .semibold)).tracking(0.6).foregroundStyle(.tertiary)
-                Text("Local tokens, not quota share · approximate: whole 5-min intervals "
-                     + (attribution.counted.map { "\(Age.clock.string(from: $0.start))–\(Age.clock.string(from: $0.end))" } ?? "(none yet)")
-                     + (attribution.windowFromProvider ? "" : " of the last 5 h") + (attribution.partial ? " · partial coverage" : ""))
-                    .font(.system(size: 11)).foregroundStyle(attribution.partial ? Color.orange : Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .help("This window is \(Age.clock.string(from: attribution.window.start))–now. Tokens are kept in 5-minute intervals; intervals that cross the window edges are left out, so the figure can be slightly low.")
+                if attribution.partial {
+                    Text("Partial").font(.system(size: 11)).foregroundStyle(.orange)
+                }
             }
             .padding(.horizontal, Metrics.inset).padding(.top, 10).padding(.bottom, 4)
             if attribution.projects.isEmpty {
-                Text("No local \(provider.displayName) activity observed in this window.")
+                Text("No activity this window")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                     .padding(.horizontal, Metrics.inset).padding(.vertical, 6)
             } else {
@@ -434,7 +431,7 @@ struct ProviderPage: View {
 /// says so, including the VoiceOver labels.
 enum TokenWording {
     static func projectFigure(tokens: Int) -> String { "≈ " + TokenFormat.short(tokens) }
-    static func projectHelp(tokens: Int) -> String { "Approximately \(tokens.formatted()) local tokens (whole 5-minute intervals)" }
+    static func projectHelp(tokens: Int) -> String { "Approximately \(tokens.formatted()) local tokens" }
     static func projectAccessibility(name: String, tokens: Int) -> String {
         "\(name), approximately \(tokens.formatted()) local tokens this window, not quota share"
     }

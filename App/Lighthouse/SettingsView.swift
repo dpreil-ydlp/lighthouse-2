@@ -38,22 +38,22 @@ struct GeneralSettings: View {
     var body: some View {
         Form {
             Section("General") {
-                Toggle("Show the lowest usage % left in the menu bar", isOn: Binding(
+                Toggle("Show lowest usage left in menu bar", isOn: Binding(
                     get: { model.usageSettings.showWorstPercent }, set: { model.setShowWorstPercent($0) }))
                 let _ = model.loginItemTick
                 Toggle("Open Lighthouse at login", isOn: Binding(get: { LoginItem.isOn }, set: { model.setLoginItem($0) }))
                 if LoginItem.status == .requiresApproval {
                     Text(LoginItem.statusText).font(.system(size: 11)).foregroundStyle(.secondary)
                 } else if LoginItem.lastChangeFailed {
-                    Text("Could not change this. Use System Settings › General › Login Items.").font(.system(size: 11)).foregroundStyle(.orange)
+                    Text("Failed. Use System Settings › Login Items.").font(.system(size: 11)).foregroundStyle(.orange)
                 }
                 Picker("Toggle panel hotkey", selection: Binding(get: { model.appSettings.hotkey }, set: { model.setHotkey($0) })) {
                     ForEach(HotkeyChoice.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 if model.hotkeyStatus != 0 {
-                    Text("This shortcut is taken by another app. Choose another.").font(.system(size: 11)).foregroundStyle(.orange)
+                    Text("In use by another app.").font(.system(size: 11)).foregroundStyle(.orange)
                 } else if model.appSettings.hotkey == .optionSpace && Hotkey.chatGPTInstalled {
-                    Text("ChatGPT also opens on ⌥Space. Choose another shortcut here, or change ChatGPT's.")
+                    Text("ChatGPT also uses ⌥Space.")
                         .font(.system(size: 11)).foregroundStyle(.orange)
                 }
                 LabeledContent("Version") {
@@ -64,7 +64,7 @@ struct GeneralSettings: View {
                 }
             }
             Section("Privacy") {
-                Text("Lighthouse reads session logs in place and stores metadata only: paths, IDs, titles, times, counters and states. It never stores message text, opens no network port, and never controls an agent. With usage turned on, it sends one HTTPS request per provider every 2 minutes, only to api.anthropic.com or chatgpt.com. With summaries turned on (Settings › Summaries), recent conversation text goes to the provider you chose; only the summary is stored.")
+                Text("Stores metadata only, never message text. Usage checks call api.anthropic.com and chatgpt.com. Summaries send recent text to the provider you choose.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }
@@ -125,9 +125,6 @@ struct OpenInSettings: View {
                 }
             } header: {
                 Text("Open threads in")
-            } footer: {
-                Text("An override opens the thread's folder in the chosen app and never runs a command. Codex and Claude links are app-only in this build: Lighthouse opens the app and offers “Copy session ID”.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -150,7 +147,7 @@ struct ProjectsSettings: View {
         Form {
             Section("Bindings") {
                 if model.bindings.isEmpty {
-                    Text("No bindings. Use “Bind to project…” on an Unassigned row.").foregroundStyle(.secondary)
+                    Text("None").foregroundStyle(.secondary)
                 }
                 ForEach(model.bindings, id: \.folder) { binding in
                     HStack {
@@ -163,7 +160,6 @@ struct ProjectsSettings: View {
                     }
                 }
             }
-            Section("Hidden folders") { Text("Arrives with onboarding in M4. Use Archive meanwhile.").foregroundStyle(.secondary) }
         }
         .formStyle(.grouped)
     }
@@ -191,10 +187,6 @@ struct UsageSettingsView: View {
                     Text(footer(provider)).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
             }
-            Section {
-                Text("Tokens stay in the Keychain or their source file and in memory while Lighthouse runs. They are never stored, logged, or refreshed. An expired or rejected token shows “Sign in again”.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-            }
         }
         .formStyle(.grouped)
     }
@@ -211,9 +203,9 @@ struct UsageSettingsView: View {
     private func footer(_ provider: Provider) -> String {
         switch provider {
         case .claude:
-            "Reads the Claude Code sign-in from the Keychain item “Claude Code-credentials”. macOS asks once; choose Always Allow. Requests go to api.anthropic.com."
+            "Uses your Claude Code sign-in."
         case .codex:
-            "Reads the Codex CLI sign-in from ~/.codex/auth.json in place. Requests go to chatgpt.com."
+            "Uses your Codex sign-in."
         }
     }
 }
@@ -230,9 +222,6 @@ struct NotificationSettingsView: View {
                     get: { model.appSettings.notificationsOn }, set: { model.setNotifications($0) }))
                 LabeledContent("macOS permission", value: systemStatus)
                 Toggle("Pause alerts", isOn: Binding(get: { model.appSettings.alertsPaused }, set: { model.setAlertsPaused($0) }))
-            } footer: {
-                Text("Pause stops delivery only; the panel still shows what needs you. Notifications use the standard level, so your Focus settings decide when they appear. A notification never offers an agent action; clicking it opens this panel.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Section("Notify me about") {
                 ForEach(NotificationCategory.allCases, id: \.self) { category in
@@ -247,8 +236,8 @@ struct NotificationSettingsView: View {
             await model.notifier.refreshStatus()
             systemStatus = switch model.notifier.status {
             case .authorized, .provisional: "Allowed"
-            case .denied: "Denied · System Settings › Notifications › Lighthouse"
-            case .notDetermined: Notifier.available ? "Not asked yet" : "Unavailable (not an app bundle)"
+            case .denied: "Denied in System Settings"
+            case .notDetermined: Notifier.available ? "Not asked yet" : "Unavailable"
             @unknown default: "Unknown"
             }
         }
@@ -272,8 +261,8 @@ struct SummarySettingsView: View {
                     model.setSummarySettings(next)
                 })) {
                     Text("Off").tag(SummaryProvider.off)
-                    Text("Claude (claude CLI)").tag(SummaryProvider.claude)
-                    Text("ChatGPT (codex CLI)").tag(SummaryProvider.chatgpt)
+                    Text("Claude").tag(SummaryProvider.claude)
+                    Text("ChatGPT").tag(SummaryProvider.chatgpt)
                 }
                 .pickerStyle(.radioGroup)
                 if settings.isOn {
@@ -297,9 +286,9 @@ struct SummarySettingsView: View {
                         Text("Letters, digits and . _ : / - only.").font(.system(size: 11)).foregroundStyle(.orange)
                     }
                     LabeledContent("CLI", value: model.summaryCLI(settings.provider)
-                        ?? "Not found. Install and sign in to the \(settings.provider.cliName ?? "") CLI.")
+                        ?? "Not found")
                 }
-                Stepper("At most \(settings.hourlyCap) calls per hour", value: Binding(get: { settings.hourlyCap }, set: { cap in
+                Stepper("Max \(settings.hourlyCap) calls per hour", value: Binding(get: { settings.hourlyCap }, set: { cap in
                     var next = settings
                     next.hourlyCap = cap
                     model.setSummarySettings(next)
@@ -312,9 +301,6 @@ struct SummarySettingsView: View {
                     .disabled(model.summaries.isEmpty)
             } header: {
                 Text("Thread summaries")
-            } footer: {
-                Text("One line per active thread, refreshed after it changes and goes quiet for a minute (every 10 minutes while it keeps running). One call at a time; each stops after 60 seconds.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Section("What is sent") {
                 Text(Self.privacyNote(settings.provider))
@@ -338,26 +324,26 @@ struct SummarySettingsView: View {
     }
 
     static func privacyNote(_ provider: SummaryProvider) -> String {
-        let base = "For each active thread, Lighthouse sends its title, project name, state and the last 24 KB of user and assistant text (no tool output, no file contents; known secret patterns are removed) through the CLI you are signed in to, under your own subscription. It starts no visible session and gives the model no tools. Lighthouse stores only the summary and a hash of what it sent; it never stores or logs the conversation text."
+        let what = "each active thread's title and last 24 KB of chat text, secrets removed. Only the summary is stored."
         switch provider {
-        case .off: return "Off: nothing is read or sent. " + base
-        case .claude: return "On: text goes to Anthropic. " + base
-        case .chatgpt: return "On: text goes to OpenAI. " + base
+        case .off: return "Nothing is sent."
+        case .claude: return "Sends Anthropic " + what
+        case .chatgpt: return "Sends OpenAI " + what
         }
     }
 
     static func outcome(_ outcome: SummaryService.Report.Outcome) -> String {
         switch outcome {
         case .made: "Summary made"
-        case .unchanged: "No new text; kept the last summary"
+        case .unchanged: "No change"
         case .noTranscript: "No readable transcript"
         case .cliMissing: "CLI not found"
-        case .scratchUnavailable: "Working folder not empty or not available"
+        case .scratchUnavailable: "Working folder unavailable"
         case .notLaunched: "CLI did not start"
         case .timedOut: "Stopped after 60 seconds"
-        case .failed: "CLI reported an error (signed in?)"
+        case .failed: "CLI error"
         case .emptyAnswer: "Empty answer"
-        case .redactionOverBudget: "Skipped: text took too long to check; nothing sent"
+        case .redactionOverBudget: "Skipped; nothing sent"
         }
     }
 }
