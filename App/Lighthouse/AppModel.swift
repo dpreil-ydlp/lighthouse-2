@@ -223,6 +223,7 @@ final class AppModel {
 
     var searchHits: [SearchHit] { ShelfBuilder.search(searchText, in: liveShelf.all) }
 
+    var hasProjects: Bool { !liveShelf.all.isEmpty }
     func project(_ root: String) -> ProjectSummary? { liveShelf.all.first { $0.identity.root == root } }
 
     /// Stale glyph: all sources, or all enabled usage, unconfirmed for more than 10 min (SPEC §6.1).
@@ -331,7 +332,7 @@ final class AppModel {
         if next != liveShelf {
             liveShelf = next
             now = Date()
-            if session.isOpen, self.shelf.all.map(\.id) != next.all.map(\.id) {
+            if session.isOpen, session.displayed(next).all.map(\.id) != next.all.map(\.id) {
                 log.notice("placement held while open: live order differs")
             }
         }

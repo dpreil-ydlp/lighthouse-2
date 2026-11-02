@@ -11,7 +11,8 @@ struct ShelfView: View {
             if model.isLoading && shelf.isEmpty {
                 ForEach(0..<4, id: \.self) { _ in PlaceholderRow() }
             } else if shelf.isEmpty {
-                Text("No projects yet")
+                // Quiet may be hidden: projects can exist with none on the shelf.
+                Text(model.hasProjects ? "No recent activity" : "No projects yet")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .padding(Metrics.inset)
