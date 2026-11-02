@@ -342,7 +342,9 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
         try? query("SELECT thread_id, line1, line2, made_at, activity_at, input_hash, provider, model FROM summaries") { row in
             guard let id = row.text(0), let line1 = row.text(1), let made = row.date(3), let activity = row.date(4), let hash = row.text(5),
                   let provider = SummaryProvider(rawValue: row.text(6) ?? ""), let model = row.text(7) else { return }
-            result[id] = ThreadSummary(threadId: id, line1: line1, line2: row.text(2), madeAt: made, activityAt: activity, inputHash: hash,
+            // Cleaned again on load, so summaries saved before a cleaning fix display correctly too.
+            result[id] = ThreadSummary(threadId: id, line1: SummaryText.clean(Substring(line1)),
+                                       line2: row.text(2).map { SummaryText.clean(Substring($0)) }.flatMap { $0.isEmpty ? nil : $0 }, madeAt: made, activityAt: activity, inputHash: hash,
                                        provider: provider, model: model)
         }
         return result

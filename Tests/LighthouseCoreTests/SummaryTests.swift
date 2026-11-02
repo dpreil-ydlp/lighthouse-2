@@ -440,6 +440,15 @@ import Testing
         #expect(SummaryText.lines(from: " \n \n") == nil)
     }
 
+    @Test func echoedFormatLabelsAreRemoved() {
+        #expect(SummaryText.lines(from: "Line 1 (≤90 chars): Support agent idle; eval done\nLine 2: Waiting on review")!
+                == ("Support agent idle; eval done", "Waiting on review"))
+        #expect(SummaryText.lines(from: "summary: Fixing tests")!.0 == "Fixing tests")
+        #expect(SummaryText.lines(from: "Status (now): Rerunning suite")!.0 == "Rerunning suite")
+        // A real sentence that merely starts with one of the words keeps it.
+        #expect(SummaryText.lines(from: "Status page redesign shipped")!.0 == "Status page redesign shipped")
+    }
+
     @Test func cliAnswersParse() {
         #expect(SummaryCLI.answer(provider: .claude, stdout: FakeLauncher.claudeAnswer) == "Fixing dark mode contrast on recipe cards\nSwitching subtitle colour")
         #expect(SummaryCLI.answer(provider: .claude, stdout: Data(#"{"type":"result","subtype":"error_max_turns","is_error":true,"result":"x"}"#.utf8)) == nil)

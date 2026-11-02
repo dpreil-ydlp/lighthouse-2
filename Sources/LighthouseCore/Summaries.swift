@@ -568,8 +568,12 @@ public enum SummaryText {
 
     static func clean(_ raw: Substring) -> String {
         var line = raw.trimmingCharacters(in: .whitespaces)
-        for prefix in ["- ", "* ", "• ", "> ", "#", "Line 1:", "Line 2:", "Summary:", "Status:"] where line.hasPrefix(prefix) {
+        for prefix in ["- ", "* ", "• ", "> ", "#"] where line.hasPrefix(prefix) {
             line = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+        }
+        // Models sometimes echo the format back: "Line 1 (≤90 chars): …", "Summary: …".
+        if let label = line.range(of: #"^(?i)(line\s*[12]|summary|status)\s*(\([^)]*\))?\s*[:：]\s*"#, options: .regularExpression) {
+            line = String(line[label.upperBound...])
         }
         line = line.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
         if line.count >= 2, let f = line.first, let l = line.last, (f == "\"" && l == "\"") || (f == "“" && l == "”") {

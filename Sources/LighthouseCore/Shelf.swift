@@ -599,9 +599,23 @@ public struct ProjectHeadline: Sendable, Hashable {
         guard recentlyCompleted || [.needsYou, .working, .recent].contains(project.status) else { return nil }
         let waiting = project.status == .needsYou ? project.threads.first { $0.state == .waitingForOwner } : nil
         guard let thread = waiting ?? project.threads.first else { return nil }
+        let names = [project.identity.name, thread.displayTitle]
         if let s = summary(thread), !s.line1.isEmpty {
-            return ProjectHeadline(threadId: thread.id, text: s.line1, isSummary: true)
+            return ProjectHeadline(threadId: thread.id, text: dropLeading(names, from: s.line1), isSummary: true)
         }
-        return ProjectHeadline(threadId: thread.id, text: thread.displayTitle, isSummary: false)
+        return ProjectHeadline(threadId: thread.id, text: dropLeading([project.identity.name], from: thread.displayTitle), isSummary: false)
+    }
+
+    /// "Groove migration: 3 of 4 invites sent" under the row named "Groove migration" reads
+    /// "3 of 4 invites sent". Only a name followed by ":" or a dash is dropped.
+    static func dropLeading(_ names: [String], from text: String) -> String {
+        for name in names where !name.isEmpty {
+            guard let match = text.range(of: name, options: [.anchored, .caseInsensitive]) else { continue }
+            let rest = text[match.upperBound...].drop { $0 == " " }
+            guard let mark = rest.first, ":-–—|".contains(mark) else { continue }
+            let remainder = rest.dropFirst().trimmingCharacters(in: .whitespaces)
+            if !remainder.isEmpty { return remainder }
+        }
+        return text
     }
 }

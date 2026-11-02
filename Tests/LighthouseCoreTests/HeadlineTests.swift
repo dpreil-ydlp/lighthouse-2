@@ -33,6 +33,15 @@ import Testing
         #expect(h == ProjectHeadline(threadId: "codex:a", text: "Patched the redirect; running tests", isSummary: true))
     }
 
+    @Test func leadingProjectOrThreadNameIsDropped() {
+        let p = project([thread("a", state: .running, minutesAgo: 1, title: "Invite the team")])
+        #expect(ProjectHeadline.make(for: p) { self.summary($0.id, "Demo: 3 of 4 invites sent") }?.text == "3 of 4 invites sent")
+        #expect(ProjectHeadline.make(for: p) { self.summary($0.id, "Invite the team — waiting on owner") }?.text == "waiting on owner")
+        // The name inside a sentence, or with nothing after the colon, stays.
+        #expect(ProjectHeadline.make(for: p) { self.summary($0.id, "Demo build is green") }?.text == "Demo build is green")
+        #expect(ProjectHeadline.make(for: p) { self.summary($0.id, "Demo:") }?.text == "Demo:")
+    }
+
     @Test func runningThreadBeatsMoreRecentIdle() {
         let p = project([thread("idle", state: .idle, minutesAgo: 0, title: "Old chat"),
                          thread("run", state: .running, minutesAgo: 3, title: "Build the release")])

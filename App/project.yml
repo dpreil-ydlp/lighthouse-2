@@ -28,8 +28,8 @@ targets:
         CFBundleDisplayName: "Lighthouse 2"
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
-        CFBundleShortVersionString: "0.0.3"
-        CFBundleVersion: "7"
+        CFBundleShortVersionString: "0.0.4"
+        CFBundleVersion: "8"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHumanReadableCopyright: "Copyright © 2026 David Preil"

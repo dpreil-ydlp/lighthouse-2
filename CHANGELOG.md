@@ -4,6 +4,16 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.4 — 2026-11-02
+
+### Fixed
+- AI summaries no longer start with a format label such as "Line 1 (≤90 chars):".
+  Summaries saved before this fix are cleaned when shown.
+- The line under a project no longer repeats the project or thread name at its
+  start ("Groove migration: 3 of 4 invites sent" shows "3 of 4 invites sent").
+- With Quiet hidden and nothing recent, the shelf says "No recent activity"
+  instead of "No projects yet".
+
 ## 0.0.3 — 2026-11-02
 
 ### Added
