@@ -4,6 +4,20 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.6 — 2026-11-03
+
+### Fixed
+- The gear (and the other Settings links in the panel) now brings the Settings
+  window to the front. Before, it opened behind the app you were in.
+- The Open button on a project row is one short line ("T3 Code ↗"), so the row
+  no longer grows when you hover it.
+
+### Changed
+- The search field is always visible at the top of the panel, beside the name.
+  Typing anywhere still starts a search, and ⌘F still focuses it.
+- Usage opens compact (one line per provider). Click **USAGE** for the detail
+  view; the choice is saved.
+
 ## 0.0.5 — 2026-11-02
 
 ### Added

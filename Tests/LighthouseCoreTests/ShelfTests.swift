@@ -176,11 +176,12 @@ import Testing
         let defaults = AppSettings()
         #expect(defaults.recentlyCompletedHours == 24)
         #expect(!defaults.showQuiet)
-        #expect(!defaults.usageCompact)
+        #expect(defaults.usageCompact)
+        #expect(AppSettings(values: ["usage.compact": 0]).usageCompact)   // 0.0.5's key is ignored
         var changed = defaults
         changed.recentlyCompletedHours = 72
         changed.showQuiet = true
-        changed.usageCompact = true
+        changed.usageCompact = false
         #expect(AppSettings(values: changed.values) == changed)
         #expect(AppSettings(values: [:]) == defaults)
         #expect(changed.shelfOptions.recentlyCompletedWindow == 72 * 3600)

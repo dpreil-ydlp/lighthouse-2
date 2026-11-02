@@ -87,6 +87,14 @@ public enum OpenAction: Sendable, Hashable {
         }
     }
 
+    /// Hover button on a shelf row: one short line ("T3 Code ↗") so the row never changes height.
+    public var shortLabel: String {
+        switch self {
+        case .link, .app, .appWithFolder: "\(appName) ↗"
+        case .reveal: "Finder ↗"
+        }
+    }
+
     public var isExactThread: Bool {
         if case .link = self { return true }
         return false

@@ -16,6 +16,41 @@ extension View {
     }
 }
 
+/// Opens Settings in front. `SettingsLink` alone opened the window behind the frontmost app: a menu
+/// bar (accessory) app is not brought forward, so the click looked like it did nothing.
+struct SettingsButton<Label: View>: View {
+    @Environment(\.openSettings) private var openSettings
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        Button { SettingsWindow.open(openSettings) } label: { label() }
+    }
+}
+
+@MainActor
+enum SettingsWindow {
+    static func open(_ openSettings: OpenSettingsAction) {
+        NSApp.activate(ignoringOtherApps: true)
+        openSettings()
+        // The window exists only after this run loop turn.
+        DispatchQueue.main.async {
+            guard let window = NSApp.windows.first(where: isSettings) else {
+                log.error("settings: window not found")
+                return
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            log.notice("settings front key=\(window.isKeyWindow, privacy: .public) active=\(NSApp.isActive, privacy: .public)")
+        }
+    }
+
+    static func isSettings(_ window: NSWindow) -> Bool {
+        window.identifier?.rawValue.localizedCaseInsensitiveContains("settings") == true
+            || (window.styleMask.contains(.titled) && !PanelWarmup.isPanel(window) && window.isVisible)
+    }
+}
+
 /// Opens and closes the MenuBarExtra panel through the app's own status item, the same path as a
 /// click, so `PanelVisibility` and the frozen shelf behave identically.
 @MainActor

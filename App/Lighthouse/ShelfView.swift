@@ -159,9 +159,12 @@ struct ProjectRow: View {
                     StatusTag(project: project)
                     Spacer(minLength: 4)
                     if hovering || model.focused == stop {
-                        Button(primary.action.label) { model.perform(primary.action) }
+                        Button(primary.action.shortLabel) { model.perform(primary.action) }
                             .buttonStyle(.borderless)
                             .font(.system(size: 11))
+                            .lineLimit(1)
+                            .fixedSize()
+                            .accessibilityLabel(primary.action.label)
                             .help(primary.thread.map { "\(primary.action.label): \($0.displayTitle)" } ?? primary.action.label)
                         Button { model.togglePin(root) } label: { Image(systemName: pinned ? "pin.fill" : "pin") }
                             .buttonStyle(.borderless)

@@ -32,7 +32,7 @@ struct UsageBlock: View {
                 }
             }
             if model.usage.isEmpty {
-                SettingsLink {
+                SettingsButton {
                     HStack(spacing: 6) {
                         Text("Connect usage in Settings")
                         Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold))
@@ -368,7 +368,7 @@ struct ProviderPage: View {
             Spacer()
             Text("\(provider.displayName) usage").font(.system(size: 14, weight: .semibold))
             Spacer()
-            SettingsLink { Image(systemName: "gearshape") }.buttonStyle(.borderless).help("Usage settings").accessibilityLabel("Usage settings")
+            SettingsButton { Image(systemName: "gearshape") }.buttonStyle(.borderless).help("Usage settings").accessibilityLabel("Usage settings")
         }
         .padding(.horizontal, Metrics.inset)
         .frame(height: 38)

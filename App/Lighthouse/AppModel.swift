@@ -876,7 +876,7 @@ final class AppModel {
     }
 
     /// Panel keys (SPEC §9), from a local event monitor on the panel window so they work whatever
-    /// SwiftUI view holds focus. Returns true when the key was handled. ⌘, stays with SettingsLink.
+    /// SwiftUI view holds focus. Returns true when the key was handled. ⌘, stays with the header's SettingsButton.
     func handleKey(_ event: NSEvent) -> Bool {
         let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
         let key = event.charactersIgnoringModifiers?.lowercased() ?? ""

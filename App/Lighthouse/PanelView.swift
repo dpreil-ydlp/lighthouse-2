@@ -28,7 +28,6 @@ struct PanelView: View {
                     OnboardingView()
                 } else {
                     AttentionStrip()
-                    if model.searchVisible { searchField }
                     Divider().opacity(0.5)
                     shelfScroll
                 }
@@ -49,45 +48,46 @@ struct PanelView: View {
         // Keys (SPEC §9) arrive through `AppModel.handleKey` (a local monitor on this window).
     }
 
+    /// Title, the always-visible search field, and Settings. Typing anywhere on the home page still
+    /// starts a search (keys go to `AppModel.handleKey`), and ⌘F focuses the field.
     private var header: some View {
-        HStack(spacing: 10) {
-            Text(AppIdentity.name).font(.system(size: 15, weight: .semibold))
-            Spacer()
-            Button { if model.searchVisible { model.escape() } else { model.openSearch("") } } label: {
-                Image(systemName: "magnifyingglass")
+        @Bindable var model = model
+        return HStack(spacing: 10) {
+            Text(AppIdentity.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary).fixedSize()
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.tertiary).font(.system(size: 11))
+                TextField("Search projects and threads", text: $model.searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .focused($searchFocused)
+                    .onChange(of: model.searchText) { _, text in
+                        model.searchFocus = nil
+                        if !text.isEmpty && !model.searchVisible { model.searchVisible = true }
+                    }
+                    .accessibilityLabel("Search projects and threads")
+                if !model.searchText.isEmpty {
+                    Button { model.escape() } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).foregroundStyle(.tertiary).font(.system(size: 11))
+                        .help("Clear search (Esc)").accessibilityLabel("Clear search")
+                }
             }
-            .buttonStyle(.borderless)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
             .help("Search projects and threads (⌘F)")
-            .accessibilityLabel("Search")
-            SettingsLink { Image(systemName: "gearshape") }
+            .onChange(of: searchFocused) { _, focused in if focused { model.searchVisible = true } }
+            .onChange(of: model.searchVisible) { _, visible in if !visible { searchFocused = false } }
+            .onChange(of: model.searchFocusRequest) { _, _ in focusSearch() }
+            SettingsButton { Image(systemName: "gearshape") }
                 .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
                 .keyboardShortcut(",", modifiers: .command)
                 .help("Settings (⌘,)")
                 .accessibilityLabel("Settings")
         }
-        .foregroundStyle(.secondary)
         .padding(.horizontal, Metrics.inset)
         .frame(height: 32)
         .padding(.top, 6)
-    }
-
-    private var searchField: some View {
-        @Bindable var model = model
-        return HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
-            TextField("Find a project or thread", text: $model.searchText)
-                .textFieldStyle(.plain)
-                .focused($searchFocused)
-                .onChange(of: model.searchText) { _, _ in model.searchFocus = nil }
-                .accessibilityLabel("Search projects and threads")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 7))
-        .padding(.horizontal, Metrics.inset)
-        .padding(.bottom, 8)
-        .onAppear { focusSearch() }
-        .onChange(of: model.searchFocusRequest) { _, _ in focusSearch() }
     }
 
     /// Focus the field with the caret after any typed character (focus alone selects all text,
@@ -139,7 +139,7 @@ struct FooterView: View {
             }
             if model.snapshot.statuses.contains(where: { $0.error != nil }) || model.storeError != nil {
                 Text("·")
-                SettingsLink { Text("Source issue") }.buttonStyle(.plain).foregroundStyle(.orange)
+                SettingsButton { Text("Source issue") }.buttonStyle(.plain).foregroundStyle(.orange)
             }
             Spacer()
             // Pause alerts: Lighthouse notifications only; detection continues (SPEC §6.2 item 6, §8).
