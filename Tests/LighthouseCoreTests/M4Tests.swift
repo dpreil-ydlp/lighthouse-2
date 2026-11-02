@@ -524,7 +524,7 @@ import Testing
 
     @Test func usageRowsAreKeyboardStopsThatPushTheProviderPage() {
         let p = ProjectSummary(identity: ProjectIdentity(root: "/a", name: "A", kind: .folder), threads: [], status: .recent, lastActivityAt: at("10:00:00"))
-        let shelf = ShelfBuilder.build(projects: [p], prefs: ProjectPrefs())
+        let shelf = ShelfBuilder.build(projects: [p], prefs: ProjectPrefs(), now: at("10:00:00"))
         var nav = ShelfNavigation()
         nav.providers = [.claude, .codex]
         #expect(Array(nav.stops(in: shelf).prefix(3)) == [.provider(.claude), .provider(.codex), .groupHeader(.active)])

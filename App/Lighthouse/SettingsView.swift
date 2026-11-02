@@ -63,12 +63,25 @@ struct GeneralSettings: View {
                     Text(model.storePath).textSelection(.enabled).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
             }
+            Section("Shelf") {
+                Picker("Keep in Recently completed for", selection: Binding(
+                    get: { model.appSettings.recentlyCompletedHours }, set: { model.setRecentlyCompletedHours($0) })) {
+                    ForEach(ShelfOptions.hourChoices, id: \.self) { Text(Self.hoursLabel($0)).tag($0) }
+                }
+                Toggle("Show Quiet projects", isOn: Binding(get: { model.appSettings.showQuiet }, set: { model.setShowQuiet($0) }))
+            }
             Section("Privacy") {
                 Text("Stores metadata only, never message text. Usage checks call api.anthropic.com and chatgpt.com. Summaries send recent text to the provider you choose.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+extension GeneralSettings {
+    static func hoursLabel(_ hours: Int) -> String {
+        hours % 24 == 0 && hours >= 48 ? "\(hours / 24) days" : "\(hours) hours"
     }
 }
 

@@ -39,8 +39,14 @@ public struct AppSettings: Sendable, Hashable {
     public var alertsPaused = false
     public var onboarded = false
     public var hotkey: HotkeyChoice = .controlOptionSpace
+    /// Hours a stopped project stays in "Recently completed" before it moves to Quiet.
+    public var recentlyCompletedHours = ShelfOptions.defaultHours
+    /// Quiet is hidden from the shelf unless the owner turns it on; search still finds it.
+    public var showQuiet = false
 
     public init() {}
+
+    public var shelfOptions: ShelfOptions { ShelfOptions(recentlyCompletedHours: recentlyCompletedHours) }
 
     init(values: [String: Int]) {
         notificationsOn = values["notify.on"] == 1
@@ -50,11 +56,13 @@ public struct AppSettings: Sendable, Hashable {
         alertsPaused = values["notify.paused"] == 1
         onboarded = values["onboarded"] == 1
         hotkey = values["hotkey"].flatMap(HotkeyChoice.init(rawValue:)) ?? .controlOptionSpace
+        recentlyCompletedHours = values["shelf.recentHours"].map { max($0, 0) } ?? ShelfOptions.defaultHours
+        showQuiet = values["shelf.showQuiet"] == 1
     }
 
     var values: [String: Int] {
         var result = ["notify.on": notificationsOn ? 1 : 0, "notify.paused": alertsPaused ? 1 : 0, "onboarded": onboarded ? 1 : 0,
-                      "hotkey": hotkey.rawValue]
+                      "hotkey": hotkey.rawValue, "shelf.recentHours": recentlyCompletedHours, "shelf.showQuiet": showQuiet ? 1 : 0]
         for category in NotificationCategory.allCases { result["notify.\(category.rawValue)"] = categories.contains(category) ? 1 : 0 }
         return result
     }

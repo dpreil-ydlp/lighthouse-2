@@ -13,17 +13,17 @@ import Testing
         return ShelfBuilder.summarize(threads: [thread], identities: [identity], now: now)[0]
     }
 
-    func shelf(_ projects: [ProjectSummary]) -> Shelf { ShelfBuilder.build(projects: projects, prefs: ProjectPrefs()) }
+    func shelf(_ projects: [ProjectSummary]) -> Shelf { ShelfBuilder.build(projects: projects, prefs: ProjectPrefs(), now: now) }
 
     @Test func placementFrozenWhileOpenAppliesAfterReopen() {
         // At open: a is working (Active), b is quiet (Quiet).
-        let before = shelf([project("a", state: .running, minutesAgo: 1), project("b", state: .idle, minutesAgo: 600)])
+        let before = shelf([project("a", state: .running, minutesAgo: 1), project("b", state: .idle, minutesAgo: 3000)])
         var session = PanelSession()
         session.show(live: before, warmup: false)
         #expect(session.isOpen)
 
         // While open, the statuses swap: a goes quiet, b starts working.
-        let after = shelf([project("a", state: .idle, minutesAgo: 600), project("b", state: .running, minutesAgo: 0)])
+        let after = shelf([project("a", state: .idle, minutesAgo: 3000), project("b", state: .running, minutesAgo: 0)])
         let shown = session.displayed(after)
         #expect(shown.group(of: "/P/a") == .active)
         #expect(shown.group(of: "/P/b") == .quiet)
@@ -47,15 +47,15 @@ import Testing
         session.show(live: before, warmup: true)
         #expect(!session.isOpen)
         // Nothing is frozen: a status change after warm-up shows live placement.
-        let after = shelf([project("a", state: .idle, minutesAgo: 600)])
+        let after = shelf([project("a", state: .idle, minutesAgo: 3000)])
         #expect(session.displayed(after).group(of: "/P/a") == .quiet)
     }
 
     @Test func ownerActionAppliesWhileOpen() {
-        let base = shelf([project("a", state: .idle, minutesAgo: 600)])
+        let base = shelf([project("a", state: .idle, minutesAgo: 3000)])
         var session = PanelSession()
         session.show(live: base, warmup: false)
-        let pinned = ShelfBuilder.build(projects: base.all, prefs: ProjectPrefs(pinned: ["/P/a"]))
+        let pinned = ShelfBuilder.build(projects: base.all, prefs: ProjectPrefs(pinned: ["/P/a"]), now: now)
         session.refreeze(live: pinned)
         #expect(session.displayed(pinned).group(of: "/P/a") == .pinned)
     }

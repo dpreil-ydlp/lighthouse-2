@@ -206,7 +206,9 @@ final class AppModel {
     /// The shelf as displayed: frozen placement while open, live data in each row, narrowed to the
     /// projects with an open item of the attention filter's kind.
     var shelf: Shelf {
-        let shelf = session.displayed(liveShelf)
+        var shelf = session.displayed(liveShelf)
+        // Quiet is hidden unless the owner turns it on; search still reaches its projects.
+        if !appSettings.showQuiet { shelf[.quiet] = [] }
         guard let filter = attentionFilter else { return shelf }
         var filtered = Shelf.empty
         for group in ShelfGroup.allCases {
@@ -307,8 +309,8 @@ final class AppModel {
     /// queued behind sorting (SPEC §3.2 panel-open budget).
     private nonisolated static func deliver(_ snapshot: Snapshot, to model: AppModel?) async {
         guard let model else { return }
-        let prefs = await MainActor.run { model.prefs }
-        let shelf = ShelfBuilder.build(projects: snapshot.projects, prefs: prefs)
+        let (prefs, options) = await MainActor.run { (model.prefs, model.appSettings.shelfOptions) }
+        let shelf = ShelfBuilder.build(projects: snapshot.projects, prefs: prefs, options: options, now: Date())
         await MainActor.run { model.publish(snapshot, shelf: shelf) }
     }
 
@@ -325,7 +327,7 @@ final class AppModel {
         // re-render of the whole shelf on the main thread can delay a click (M1-01).
         self.snapshot = snapshot
         if snapshot.checkedAt != nil && isLoading { isLoading = false }
-        let next = shelf ?? ShelfBuilder.build(projects: snapshot.projects, prefs: prefs)
+        let next = shelf ?? ShelfBuilder.build(projects: snapshot.projects, prefs: prefs, options: appSettings.shelfOptions, now: Date())
         if next != liveShelf {
             liveShelf = next
             now = Date()
@@ -487,6 +489,19 @@ final class AppModel {
         hotkeyStatus = Hotkey.shared.register(choice)
     }
 
+    /// Owner shelf settings apply at once, even while the panel is open (like pin/pause).
+    func setRecentlyCompletedHours(_ hours: Int) {
+        appSettings.recentlyCompletedHours = hours
+        saveAppSettings()
+        rebuild()
+        session.refreeze(live: liveShelf)
+    }
+
+    func setShowQuiet(_ on: Bool) {
+        appSettings.showQuiet = on
+        saveAppSettings()
+    }
+
     func finishOnboarding() {
         appSettings.onboarded = true
         saveAppSettings()
@@ -507,7 +522,7 @@ final class AppModel {
     }
 
     private func rebuild() {
-        liveShelf = ShelfBuilder.build(projects: snapshot.projects, prefs: prefs)
+        liveShelf = ShelfBuilder.build(projects: snapshot.projects, prefs: prefs, options: appSettings.shelfOptions, now: Date())
     }
 
     func refreshNow() { waker.wake() }

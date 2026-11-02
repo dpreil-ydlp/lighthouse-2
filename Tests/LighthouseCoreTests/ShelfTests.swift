@@ -38,7 +38,7 @@ import Testing
         let recent = project("recent", [thread("5", state: .idle, minutesAgo: 3)])
         let working = project("working", [thread("6", state: .running, minutesAgo: 1)])
         let prefs = ProjectPrefs(pinned: [pinnedQuiet.id], paused: [pausedWithAttention.id], archived: [archived.id, pinnedQuiet.id])
-        let shelf = ShelfBuilder.build(projects: [pinnedQuiet, pausedWithAttention, archived, unassigned, recent, working], prefs: prefs)
+        let shelf = ShelfBuilder.build(projects: [pinnedQuiet, pausedWithAttention, archived, unassigned, recent, working], prefs: prefs, now: now)
         #expect(shelf[.pinned].map(\.identity.name) == ["pinned"])
         #expect(shelf[.active].map(\.identity.name) == ["paused", "working", "recent"])
         #expect(ShelfBuilder.ownerTag(for: pausedWithAttention, prefs: prefs) == "paused")
@@ -67,7 +67,7 @@ import Testing
         projects.append(project("Loose", [thread("loose", state: .idle, minutesAgo: 30)], unassigned: true))
         let pins = ["/P/Project 3", "/P/Project 0", "/P/Project 9", "/P/Project 12"]
         let prefs = ProjectPrefs(pinned: pins, paused: ["/P/Project 5"], archived: ["/P/Project 7"])
-        let shelf = ShelfBuilder.build(projects: projects, prefs: prefs)
+        let shelf = ShelfBuilder.build(projects: projects, prefs: prefs, now: now)
 
         let roots = shelf.all.map(\.identity.root)
         #expect(roots.count == projects.count)
@@ -117,19 +117,70 @@ import Testing
 
     @Test func freezeKeepsPlacementWhileDataUpdates() {
         let a = project("a", [thread("1", state: .running, minutesAgo: 1)])
-        let b = project("b", [thread("2", state: .idle, minutesAgo: 600)])
-        let frozen = ShelfBuilder.build(projects: [a, b], prefs: ProjectPrefs())
+        let b = project("b", [thread("2", state: .idle, minutesAgo: 3000)])
+        let frozen = ShelfBuilder.build(projects: [a, b], prefs: ProjectPrefs(), now: now)
         #expect(frozen.group(of: a.id) == .active)
         // Later: a went quiet, b became active, c is new.
-        let a2 = project("a", [thread("1", state: .idle, minutesAgo: 600)])
+        let a2 = project("a", [thread("1", state: .idle, minutesAgo: 3000)])
         let b2 = project("b", [thread("2", state: .running, minutesAgo: 0)])
         let c = project("c", [thread("3", state: .running, minutesAgo: 0)])
-        let live = ShelfBuilder.build(projects: [a2, b2, c], prefs: ProjectPrefs())
+        let live = ShelfBuilder.build(projects: [a2, b2, c], prefs: ProjectPrefs(), now: now)
         let shown = ShelfBuilder.freeze(live, to: frozen)
         #expect(shown.group(of: a.id) == .active)
         #expect(shown.group(of: b.id) == .quiet)
         #expect(shown[.active].first?.status == .quiet) // data updated in place
         #expect(shown.group(of: c.id) == .active)
         #expect(shown.all.count == 3)
+    }
+
+    /// Work left overnight stays on the shelf in "Recently completed"
+    /// for the owner's window (default 24 h), then moves to Quiet.
+    @Test func recentlyCompletedHoldsStoppedWorkForTheWindow() {
+        let lastNight = project("lastNight", [thread("1", state: .idle, minutesAgo: 14 * 60)])
+        let edge = project("edge", [thread("2", state: .stopped, minutesAgo: 24 * 60)])
+        let old = project("old", [thread("3", state: .idle, minutesAgo: 25 * 60)])
+        let earlier = project("earlier", [thread("4", state: .idle, minutesAgo: 60)])
+        let recent = project("recent", [thread("5", state: .idle, minutesAgo: 5)])
+        let working = project("working", [thread("6", state: .running, minutesAgo: 1)])
+        let all = [old, lastNight, edge, earlier, recent, working]
+
+        let shelf = ShelfBuilder.build(projects: all, prefs: ProjectPrefs(), now: now)
+        #expect(shelf[.active].map(\.identity.name) == ["working", "recent"])
+        #expect(shelf[.recentlyCompleted].map(\.identity.name) == ["earlier", "lastNight", "edge"]) // newest first
+        #expect(shelf[.quiet].map(\.identity.name) == ["old"])
+        #expect(Set(shelf.all.map(\.id)).count == all.count)
+
+        // A shorter window moves last night's work to Quiet; a longer one keeps "old".
+        let short = ShelfBuilder.build(projects: all, prefs: ProjectPrefs(), options: ShelfOptions(recentlyCompletedHours: 8), now: now)
+        #expect(short[.recentlyCompleted].map(\.identity.name) == ["earlier"])
+        #expect(short[.quiet].map(\.identity.name) == ["edge", "lastNight", "old"])
+        let long = ShelfBuilder.build(projects: all, prefs: ProjectPrefs(), options: ShelfOptions(recentlyCompletedHours: 48), now: now)
+        #expect(long[.recentlyCompleted].map(\.identity.name) == ["earlier", "lastNight", "edge", "old"])
+        #expect(long[.quiet].isEmpty)
+
+        // Owner labels and pins still win; Recently completed is open with no header click.
+        let labeled = ShelfBuilder.build(projects: all, prefs: ProjectPrefs(pinned: [lastNight.id], paused: [edge.id]), now: now)
+        #expect(labeled[.recentlyCompleted].map(\.identity.name) == ["earlier"])
+        #expect(labeled[.paused].map(\.identity.name) == ["edge"])
+        #expect(ShelfGroup.recentlyCompleted.alwaysOpen && !ShelfGroup.quiet.alwaysOpen)
+        let stops = ShelfNavigation().stops(in: shelf)
+        #expect(stops.contains(.project(lastNight.id)))
+        #expect(!stops.contains(.project(old.id)))
+
+        // A recently completed project gets the main-page headline; Quiet does not.
+        #expect(ProjectHeadline.make(for: lastNight, recentlyCompleted: true) { _ in nil }?.text == "Thread 1")
+        #expect(ProjectHeadline.make(for: old) { _ in nil } == nil)
+    }
+
+    @Test func shelfSettingsDefaultAndRoundTrip() {
+        let defaults = AppSettings()
+        #expect(defaults.recentlyCompletedHours == 24)
+        #expect(!defaults.showQuiet)
+        var changed = defaults
+        changed.recentlyCompletedHours = 72
+        changed.showQuiet = true
+        #expect(AppSettings(values: changed.values) == changed)
+        #expect(AppSettings(values: [:]) == defaults)
+        #expect(changed.shelfOptions.recentlyCompletedWindow == 72 * 3600)
     }
 }

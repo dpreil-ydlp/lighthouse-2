@@ -68,12 +68,16 @@ public struct ProjectPrefs: Sendable, Hashable, Codable {
 }
 
 public enum ShelfGroup: String, Sendable, Hashable, CaseIterable {
-    case pinned, active, quiet, paused, archived, unassigned
+    case pinned, active, recentlyCompleted, quiet, paused, archived, unassigned
+
+    /// Groups shown expanded with no disclosure header.
+    public var alwaysOpen: Bool { self == .pinned || self == .active || self == .recentlyCompleted }
 
     public var title: String {
         switch self {
         case .pinned: "Pinned"
         case .active: "Active"
+        case .recentlyCompleted: "Recently completed"
         case .quiet: "Quiet"
         case .paused: "Paused"
         case .archived: "Archived"
@@ -123,6 +127,20 @@ public enum Decay {
     }
 }
 
+/// Owner shelf options. A project that stopped within `recentlyCompletedWindow` shows in
+/// "Recently completed" instead of Quiet, so work left overnight is still on the shelf next day.
+public struct ShelfOptions: Sendable, Hashable {
+    public static let defaultHours = 24
+    /// Choices offered in Settings, in hours.
+    public static let hourChoices = [4, 8, 12, 24, 48, 72, 168]
+
+    public var recentlyCompletedWindow: TimeInterval
+
+    public init(recentlyCompletedHours: Int = ShelfOptions.defaultHours) {
+        recentlyCompletedWindow = TimeInterval(max(recentlyCompletedHours, 0)) * 3600
+    }
+}
+
 public enum ShelfBuilder {
     public static let threadsShownExpanded = 3
     public static let pinsVisible = 3
@@ -157,22 +175,26 @@ public enum ShelfBuilder {
 
     /// Membership (SPEC §6.2 item 5): each project in exactly one group. Pinned wins over all groups;
     /// attention wins over Paused and Archived (shown in Active with a tag); then Archived, Paused,
-    /// Unassigned, Active (needsYou, working, recent), Quiet (quiet, dormant).
-    public static func build(projects: [ProjectSummary], prefs: ProjectPrefs) -> Shelf {
+    /// Unassigned, Active (needsYou, working, recent), Recently completed (quiet or dormant with
+    /// activity inside the window), Quiet (the rest).
+    public static func build(projects: [ProjectSummary], prefs: ProjectPrefs, options: ShelfOptions = ShelfOptions(),
+                             now: Date) -> Shelf {
         var shelf = Shelf.empty
         let byRoot = Dictionary(projects.map { ($0.identity.root, $0) }, uniquingKeysWith: { a, _ in a })
         let pinned = prefs.pinned.compactMap { byRoot[$0] }
         shelf[.pinned] = pinned
         let pinnedSet = Set(pinned.map(\.identity.root))
         for project in projects where !pinnedSet.contains(project.identity.root) {
-            shelf[placement(of: project, prefs: prefs)].append(project)
+            shelf[placement(of: project, prefs: prefs, options: options, now: now)].append(project)
         }
         shelf[.active].sort(by: activeOrder)
+        shelf[.recentlyCompleted].sort(by: newestFirst)
         for group in [ShelfGroup.quiet, .paused, .archived, .unassigned] { shelf[group].sort(by: alphabetical) }
         return shelf
     }
 
-    static func placement(of project: ProjectSummary, prefs: ProjectPrefs) -> ShelfGroup {
+    static func placement(of project: ProjectSummary, prefs: ProjectPrefs, options: ShelfOptions,
+                          now: Date) -> ShelfGroup {
         let root = project.identity.root
         if project.status == .needsYou { return .active }
         if prefs.archived.contains(root) { return .archived }
@@ -180,7 +202,9 @@ public enum ShelfBuilder {
         if project.identity.isUnassigned { return .unassigned }
         switch project.status {
         case .needsYou, .working, .recent: return .active
-        case .quiet, .dormant: return .quiet
+        case .quiet, .dormant:
+            guard let last = project.lastActivityAt, now.timeIntervalSince(last) <= options.recentlyCompletedWindow else { return .quiet }
+            return .recentlyCompleted
         }
     }
 
@@ -197,6 +221,11 @@ public enum ShelfBuilder {
         let l = a.lastActivityAt ?? .distantPast, r = b.lastActivityAt ?? .distantPast
         if l != r { return l > r }
         return alphabetical(a, b)
+    }
+
+    static func newestFirst(_ a: ProjectSummary, _ b: ProjectSummary) -> Bool {
+        let l = a.lastActivityAt ?? .distantPast, r = b.lastActivityAt ?? .distantPast
+        return l != r ? l > r : alphabetical(a, b)
     }
 
     static func alphabetical(_ a: ProjectSummary, _ b: ProjectSummary) -> Bool {
@@ -273,7 +302,7 @@ public enum FocusOrder {
             let rows = shelf[group]
             guard !rows.isEmpty else { continue }
             stops.append(.groupHeader(group))
-            let open = group == .pinned || group == .active || expandedGroups.contains(group)
+            let open = group.alwaysOpen || expandedGroups.contains(group)
             guard open else { continue }
             let collapsedPins = group == .pinned && !pinsExpanded && rows.count > ShelfBuilder.pinsVisible
             let visible = collapsedPins ? Array(rows.prefix(ShelfBuilder.pinsVisible)) : rows
@@ -555,7 +584,7 @@ public enum PanelFrame {
 }
 
 /// The main-page "what's happening" line for an active project (M10): the AI summary of the thread
-/// that matters most, else that thread's title. Quiet and dormant projects get none.
+/// that matters most, else that thread's title. Quiet projects get none.
 public struct ProjectHeadline: Sendable, Hashable {
     public var threadId: String
     public var text: String
@@ -564,8 +593,10 @@ public struct ProjectHeadline: Sendable, Hashable {
 
     /// Thread choice: a thread waiting for the owner when the project needs them, else the first
     /// thread in shelf order (running, then waiting, then idle; most recent first).
-    public static func make(for project: ProjectSummary, summary: (SessionThread) -> ThreadSummary?) -> ProjectHeadline? {
-        guard [.needsYou, .working, .recent].contains(project.status) else { return nil }
+    /// `recentlyCompleted`: the project sits in "Recently completed", so it gets a headline too.
+    public static func make(for project: ProjectSummary, recentlyCompleted: Bool = false,
+                            summary: (SessionThread) -> ThreadSummary?) -> ProjectHeadline? {
+        guard recentlyCompleted || [.needsYou, .working, .recent].contains(project.status) else { return nil }
         let waiting = project.status == .needsYou ? project.threads.first { $0.state == .waitingForOwner } : nil
         guard let thread = waiting ?? project.threads.first else { return nil }
         if let s = summary(thread), !s.line1.isEmpty {

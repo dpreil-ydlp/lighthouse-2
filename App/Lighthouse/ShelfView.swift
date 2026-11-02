@@ -30,7 +30,7 @@ struct GroupSection: View {
     let group: ShelfGroup
     let rows: [ProjectSummary]
 
-    private var alwaysOpen: Bool { group == .pinned || group == .active }
+    private var alwaysOpen: Bool { group.alwaysOpen }
     private var isOpen: Bool { alwaysOpen || model.expandedGroups.contains(group) }
 
     var body: some View {
@@ -115,7 +115,9 @@ struct ProjectRow: View {
     private var root: String { project.identity.root }
     private var expanded: Bool { model.expandedProject == root }
     private var pinned: Bool { model.prefs.pinned.contains(root) }
-    private var headline: ProjectHeadline? { ProjectHeadline.make(for: project) { model.summary(for: $0) } }
+    private var headline: ProjectHeadline? {
+        ProjectHeadline.make(for: project, recentlyCompleted: model.shelf.group(of: root) == .recentlyCompleted) { model.summary(for: $0) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
