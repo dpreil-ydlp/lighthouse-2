@@ -51,6 +51,8 @@ public struct ProjectSummary: Sendable, Hashable, Identifiable {
     public var liveThreads: [SessionThread] { threads.filter { $0.state != .stopped } }
     public var stoppedThreads: [SessionThread] { threads.filter { $0.state == .stopped } }
     public var runningThreadCount: Int { threads.filter { $0.state == .running }.count }
+    /// Open requests waiting for the owner (approval or input), threads and subagents together.
+    public var waitingItems: [AttentionItem] { attentionItems.filter { $0.kind == .waitingForOwner } }
     public var mostRecentThread: SessionThread? { threads.max { $0.latestActivityAt < $1.latestActivityAt } }
 }
 

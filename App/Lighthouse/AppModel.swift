@@ -503,6 +503,11 @@ final class AppModel {
         saveAppSettings()
     }
 
+    func toggleUsageCompact() {
+        appSettings.usageCompact.toggle()
+        saveAppSettings()
+    }
+
     func finishOnboarding() {
         appSettings.onboarded = true
         saveAppSettings()

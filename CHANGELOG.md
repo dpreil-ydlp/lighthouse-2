@@ -4,6 +4,22 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.5 — 2026-11-02
+
+### Added
+- Click **USAGE** at the top of the panel to show one line per provider (percent
+  left for the session and the week). Click it again for the full view. The
+  choice is saved.
+- A yellow **Needs you** tag on a project whose thread or subagent waits for
+  your approval or answer.
+
+### Changed
+- Each project's status (Working, Recent, No activity) now sits on the first
+  line beside the app labels; the thread count is gone. Rows are shorter, so
+  more projects fit.
+- With many projects the panel can grow to nearly the full screen height
+  (it stopped at 720 points before).
+
 ## 0.0.4 — 2026-11-02
 
 ### Fixed

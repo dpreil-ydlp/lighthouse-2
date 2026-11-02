@@ -6,9 +6,24 @@ struct UsageBlock: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let compact = model.appSettings.usageCompact
+        VStack(alignment: .leading, spacing: compact ? 2 : 4) {
             HStack {
-                Text("USAGE").font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(.tertiary)
+                // The header folds the block to one line per provider and back (saved).
+                Button { withAnimation(.easeOut(duration: 0.15)) { model.toggleUsageCompact() } } label: {
+                    HStack(spacing: 4) {
+                        Text("USAGE").font(.system(size: 10, weight: .semibold)).tracking(0.8)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .rotationEffect(.degrees(compact ? 0 : 90))
+                    }
+                    .foregroundStyle(.tertiary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(model.usage.isEmpty)
+                .help(compact ? "Show usage details" : "Compact usage")
+                .accessibilityLabel(compact ? "Usage, compact. Show details" : "Usage, detailed. Compact")
                 Spacer()
                 if let checked = model.usage.compactMap(\.lastSuccessAt).min() {
                     Text("⟳ \(Age.short(checked, now: model.now)) ago")
@@ -27,12 +42,12 @@ struct UsageBlock: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                ForEach(model.usage) { UsageRow(reading: $0) }
+                ForEach(model.usage) { UsageRow(reading: $0, compact: compact) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Metrics.inset)
-        .padding(.bottom, 10)
+        .padding(.bottom, compact ? 6 : 10)
     }
 }
 
@@ -46,6 +61,7 @@ enum UsageLayout {
 struct UsageRow: View {
     @Environment(AppModel.self) private var model
     let reading: ProviderUsage
+    var compact = false
     @State private var hovering = false
 
     var body: some View {
@@ -54,8 +70,10 @@ struct UsageRow: View {
         // VoiceOver activation pushes the provider page (M2 gap: `.accessibilityElement(children:
         // .ignore)` replaced the button with a plain element that had no press action).
         Button { model.route = .provider(reading.provider) } label: {
-            VStack(alignment: .leading, spacing: 3) { lines }
-                .padding(.vertical, 4)
+            VStack(alignment: .leading, spacing: 3) {
+                if compact { compactLine } else { lines }
+            }
+                .padding(.vertical, compact ? 2 : 4)
                 .padding(.horizontal, 6)
                 .background(RoundedRectangle(cornerRadius: 6).fill(focused ? Color.accentColor.opacity(0.12) : Color.primary.opacity(hovering ? 0.06 : 0)))
                 .contentShape(Rectangle())
@@ -67,6 +85,51 @@ struct UsageRow: View {
         .id(FocusOrder.Stop.provider(reading.provider))
         .accessibilityLabel(UsageWording.accessibility(reading, now: model.now))
         .accessibilityHint("Opens the \(reading.provider.displayName) usage page")
+    }
+
+    /// Compact: `Claude Max  ▬▬▬ 62%   week ▬▬ 80%`; no pace or reset (those stay in the tooltip,
+    /// the detailed block and the provider page). Stale readings keep the grey bar.
+    @ViewBuilder private var compactLine: some View {
+        let windows = reading.displayWindows(now: model.now)
+        let slots = [UsageWindow.sessionId, UsageWindow.weeklyId].map { id in windows.first { $0.id == id } }
+        let shown = slots.compactMap { $0 }
+        let stale = reading.status == .stale
+        HStack(spacing: 8) {
+            ProviderName(reading: reading)
+            switch reading.status {
+            case .signInRequired, .unavailable:
+                Text(UsageWording.reason(reading)).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                Spacer(minLength: 0)
+            case .fresh, .stale:
+                if shown.isEmpty {
+                    Text(UsageWording.noWindows(reading, now: model.now)).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                // Two fixed columns (session, week) so rows line up; a missing window leaves its column empty.
+                if !shown.isEmpty {
+                    ForEach(Array(slots.enumerated()), id: \.offset) { _, window in
+                        if let window { compactWindow(window, stale: stale) } else { Color.clear.frame(maxWidth: .infinity, maxHeight: 1) }
+                    }
+                }
+            }
+        }
+        .monospacedDigit()
+    }
+
+    private func compactWindow(_ window: UsageWindow, stale: Bool) -> some View {
+        let pace = UsagePace(window: window, now: model.now)
+        return HStack(spacing: 5) {
+            if window.id == UsageWindow.weeklyId {
+                Text("week").font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            UsageBar(pace: pace, thick: false, stale: stale)
+            Text("\(Int(pace.left.rounded()))%")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(stale ? Color.secondary : UsageTint.text(left: pace.left))
+                .frame(width: 36, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity)
+        .help(UsageWording.absoluteReset(window).map { "\(UsageText.windowName(window)) resets \($0)" } ?? "Reset time not reported")
     }
 
     @ViewBuilder private var lines: some View {

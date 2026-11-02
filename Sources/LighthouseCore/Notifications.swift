@@ -43,6 +43,8 @@ public struct AppSettings: Sendable, Hashable {
     public var recentlyCompletedHours = ShelfOptions.defaultHours
     /// Quiet is hidden from the shelf unless the owner turns it on; search still finds it.
     public var showQuiet = false
+    /// Usage block shows one line per provider (owner toggles it from the USAGE header).
+    public var usageCompact = false
 
     public init() {}
 
@@ -58,11 +60,13 @@ public struct AppSettings: Sendable, Hashable {
         hotkey = values["hotkey"].flatMap(HotkeyChoice.init(rawValue:)) ?? .controlOptionSpace
         recentlyCompletedHours = values["shelf.recentHours"].map { max($0, 0) } ?? ShelfOptions.defaultHours
         showQuiet = values["shelf.showQuiet"] == 1
+        usageCompact = values["usage.compact"] == 1
     }
 
     var values: [String: Int] {
         var result = ["notify.on": notificationsOn ? 1 : 0, "notify.paused": alertsPaused ? 1 : 0, "onboarded": onboarded ? 1 : 0,
-                      "hotkey": hotkey.rawValue, "shelf.recentHours": recentlyCompletedHours, "shelf.showQuiet": showQuiet ? 1 : 0]
+                      "hotkey": hotkey.rawValue, "shelf.recentHours": recentlyCompletedHours, "shelf.showQuiet": showQuiet ? 1 : 0,
+                      "usage.compact": usageCompact ? 1 : 0]
         for category in NotificationCategory.allCases { result["notify.\(category.rawValue)"] = categories.contains(category) ? 1 : 0 }
         return result
     }

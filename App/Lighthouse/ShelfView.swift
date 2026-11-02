@@ -156,6 +156,7 @@ struct ProjectRow: View {
                     if let tag = ShelfBuilder.ownerTag(for: project, prefs: model.prefs), project.status == .needsYou {
                         Text(tag).font(.system(size: 10)).foregroundStyle(.secondary)
                     }
+                    StatusTag(project: project)
                     Spacer(minLength: 4)
                     if hovering || model.focused == stop {
                         Button(primary.action.label) { model.perform(primary.action) }
@@ -174,7 +175,7 @@ struct ProjectRow: View {
                         }
                     }
                 }
-                StatusLine(project: project)
+                AttentionLine(project: project)
                 if let headline { HeadlineLine(headline: headline) }
             }
         }
@@ -239,21 +240,58 @@ struct SourceChip: View {
     }
 }
 
-/// Line 2 of a project row: attention reason in amber, else the status (SPEC §6.2, §5.3 wording).
-struct StatusLine: View {
-    @Environment(AppModel.self) private var model
+/// Line 1 status, beside the app chips: a yellow "Needs you" tag while a thread
+/// or subagent waits for an approval or an answer; else Working / Recent / No activity. The age at
+/// the row's right edge gives the "how long".
+struct StatusTag: View {
     let project: ProjectSummary
 
     var body: some View {
-        if let reason = project.attention.first {
-            Label(reason, systemImage: "diamond.fill")
-                .font(.system(size: 11)).foregroundStyle(.orange).lineLimit(1)
+        let waiting = project.waitingItems
+        if !waiting.isEmpty {
+            Text(waiting.count > 1 ? "Needs you · \(waiting.count)" : "Needs you")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.black.opacity(0.85))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1.5)
+                .background(Capsule().fill(Color.yellow))
+                .fixedSize()
+                .help(waiting.map(\.label).joined(separator: "\n"))
         } else {
-            Text(Self.text(for: project, now: model.now))
-                .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).monospacedDigit()
+            switch project.status {
+            case .working:
+                HStack(spacing: 4) {
+                    Circle().fill(Color.green).frame(width: 6, height: 6)
+                    Text("Working").foregroundStyle(.secondary)
+                }
+                .font(.system(size: 11)).fixedSize()
+            case .recent:
+                Text("Recent").font(.system(size: 11)).foregroundStyle(.secondary).fixedSize()
+            case .quiet, .dormant:
+                Text("No activity").font(.system(size: 11)).foregroundStyle(.tertiary).fixedSize()
+            case .needsYou:
+                EmptyView() // stalled or silent: the amber line below says why
+            }
         }
     }
+}
 
+/// Amber line under line 1 for stalled threads and silent subagents only; waiting requests are the
+/// yellow tag (their thread is the headline).
+struct AttentionLine: View {
+    let project: ProjectSummary
+
+    var body: some View {
+        let waiting = Set(project.waitingItems.map(\.label))
+        if let reason = project.attention.first(where: { !waiting.contains($0) }) {
+            Label(reason, systemImage: "diamond.fill")
+                .font(.system(size: 11)).foregroundStyle(.orange).lineLimit(1)
+        }
+    }
+}
+
+/// Status sentence for the project page and VoiceOver (SPEC §5.3 wording).
+enum StatusLine {
     static func text(for project: ProjectSummary, now: Date) -> String {
         let count = project.threads.count
         let threads = "\(count) thread\(count == 1 ? "" : "s")"

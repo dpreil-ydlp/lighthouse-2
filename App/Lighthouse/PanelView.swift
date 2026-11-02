@@ -5,8 +5,9 @@ enum Metrics {
     static let width: CGFloat = 400
     static let inset: CGFloat = 14
     static var maxHeight: CGFloat {
+        // A long shelf may use nearly the whole screen height; a short one still shrinks to fit.
         let screen = NSScreen.main?.visibleFrame.height ?? 900
-        return min(720, screen - 80)
+        return screen - 16
     }
 }
 
