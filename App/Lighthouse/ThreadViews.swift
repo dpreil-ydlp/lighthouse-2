@@ -76,7 +76,7 @@ struct ThreadRow: View {
     }
 }
 
-/// The one-line AI summary under a thread title (M8), marked as AI-made with a sparkle and a tooltip.
+/// The one-line AI summary under a thread title (M8), with the maker and age in its tooltip.
 struct SummaryLine: View {
     @Environment(AppModel.self) private var model
     let summary: ThreadSummary

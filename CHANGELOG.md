@@ -4,7 +4,7 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
-## 0.0.3 — unreleased
+## 0.0.3 — 2026-11-02
 
 ### Added
 - **Recently completed** shelf group. A project whose agents stopped within the
