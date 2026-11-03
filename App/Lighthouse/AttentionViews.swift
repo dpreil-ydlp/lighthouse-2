@@ -51,8 +51,8 @@ struct AttentionStrip: View {
     }
 }
 
-/// First-run onboarding in the panel (SPEC §6.6): detects sources, explains the one Keychain
-/// prompt, asks notification permission, offers the login item. Nothing here reads a source file:
+/// First-run onboarding in the panel (SPEC §6.6): detects sources, explains Keychain
+/// use, asks notification permission, offers the login item. Nothing here reads a source file:
 /// detection is an existence check of each source location.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model

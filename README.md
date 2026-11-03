@@ -1,6 +1,6 @@
 # Lighthouse 2
 
-Version 0.0.8 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
+Version 0.0.9 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
 
 Lighthouse 2 is a menu bar app for people who run coding agents in Claude Code, Codex and T3 Code. Click the lighthouse in the menu bar, or press ⌃⌥Space, and one panel shows:
 
@@ -26,14 +26,14 @@ All pictures use made-up projects from the app's test mode.
 curl -fsSL https://raw.githubusercontent.com/dpreil-ydlp/lighthouse-2/main/install.sh | sh
 ```
 
-The script downloads `Lighthouse-2-0.0.8.zip` from this repository's v0.0.8 release over HTTPS, checks it against the SHA-256 published with the release, installs `/Applications/Lighthouse 2.app` and opens it. Read [install.sh](install.sh) first if you like; it is short. If `/Applications/Lighthouse 2.app` already exists and is not Lighthouse 2, the script stops and changes nothing. If an older build sits at `/Applications/Lighthouse.app`, the script quits it and moves it to the Trash, so only one copy remains.
+The script downloads `Lighthouse-2-0.0.9.zip` from this repository's v0.0.9 release over HTTPS, checks it against the SHA-256 published with the release, installs `/Applications/Lighthouse 2.app` and opens it. Read [install.sh](install.sh) first if you like; it is short. If `/Applications/Lighthouse 2.app` already exists and is not Lighthouse 2, the script stops and changes nothing. If an older build sits at `/Applications/Lighthouse.app`, the script quits it and moves it to the Trash, so only one copy remains.
 
 Files downloaded with `curl` carry no quarantine flag, so macOS opens the app without the Gatekeeper warning described below.
 
 ### Download the app
 
-1. Download `Lighthouse-2-0.0.8.zip` from the [v0.0.8 release](https://github.com/dpreil-ydlp/lighthouse-2/releases/tag/v0.0.8).
-2. Optional: download `Lighthouse-2-0.0.8.zip.sha256` too and run `shasum -a 256 -c Lighthouse-2-0.0.8.zip.sha256` in the same folder.
+1. Download `Lighthouse-2-0.0.9.zip` from the [v0.0.9 release](https://github.com/dpreil-ydlp/lighthouse-2/releases/tag/v0.0.9).
+2. Optional: download `Lighthouse-2-0.0.9.zip.sha256` too and run `shasum -a 256 -c Lighthouse-2-0.0.9.zip.sha256` in the same folder.
 3. Double-click the zip and drag `Lighthouse 2.app` to Applications.
 4. Open it. The first time, macOS blocks it, because the app is signed ad-hoc and not notarized by Apple (there is no paid Developer ID behind this release). You see "“Lighthouse 2” Not Opened" with **Move to Trash** and **Done**. Click **Done**.
 5. Open System Settings › Privacy & Security, scroll to Security, and click **Open Anyway** next to the line about Lighthouse 2. macOS may ask for your password. It remembers the choice.
@@ -47,7 +47,7 @@ The panel opens with a short welcome. It lists the sources it found and offers t
 - ⌃⌥Space opens and closes the panel. You can pick another shortcut in Settings › General.
 - ⌘, opens Settings. ⌘Q quits while the panel or Settings is in front. There is no Dock icon.
 - Usage bars stay off until you turn them on in Settings › Usage, one switch per provider.
-- **Keychain prompt.** When you turn on Claude usage, macOS asks whether Lighthouse 2 may read the Keychain item “Claude Code-credentials”. That is Claude Code's own sign-in. Choose **Always Allow**. Each new build of an ad-hoc signed app counts as a new app, so an update asks once more.
+- **Keychain.** Claude usage needs Claude Code's sign-in token, the Keychain item “Claude Code-credentials”. Lighthouse 2 reads it through Apple's `/usr/bin/security`, the same tool Claude Code uses for that item, so normally macOS shows no prompt, and updates do not bring one back. If macOS does ask (an item made some other way), it asks for `security`; choose **Always Allow** once.
 - Codex usage reads `~/.codex/auth.json`, a plain file, so there is no prompt.
 
 ## What you see
@@ -107,7 +107,7 @@ That quits Lighthouse 2 and moves `/Applications/Lighthouse 2.app` to the Trash.
 2. Quit: open the panel and press ⌘Q.
 3. Move `/Applications/Lighthouse 2.app` to the Trash.
 4. To delete its data too: `rm -r ~/Library/Application\ Support/Lighthouse ~/Library/Caches/com.lighthouse.v2` and `defaults delete com.lighthouse.v2`.
-5. If you allowed Keychain access, open Keychain Access, find “Claude Code-credentials”, and remove Lighthouse 2 from the item's Access Control list. Do not delete the item itself; it is Claude Code's sign-in.
+5. If an older version (0.0.8 or earlier) was allowed Keychain access, open Keychain Access, find “Claude Code-credentials”, and remove Lighthouse 2 from the item's Access Control list. Do not delete the item itself; it is Claude Code's sign-in.
 
 ## Build from source
 
@@ -117,7 +117,7 @@ You need Xcode with Swift 6 on Apple silicon.
 git clone https://github.com/dpreil-ydlp/lighthouse-2.git
 cd lighthouse-2
 swift test            # core and app-logic tests
-scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.8.zip and its .sha256
+scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.9.zip and its .sha256
 ```
 
 `scripts/package.sh` builds with SwiftPM, so it works without opening Xcode. It strips the binary (symbols go to `dist/Lighthouse.app.dSYM`), signs ad-hoc and writes a zip that holds only `Lighthouse 2.app`. Set `SIGN_IDENTITY` to sign with your own certificate. `App/Lighthouse.xcodeproj`, generated from `App/project.yml` with XcodeGen, builds the same app in Xcode.

@@ -37,7 +37,8 @@ public struct ProcessOutcome: Sendable, Hashable {
     public static let notLaunched = ProcessOutcome(launched: false, exitCode: nil, timedOut: false, stdout: Data(), stderrBytes: 0, seconds: 0)
 }
 
-/// Starts summary CLIs. The only process-launch path in Lighthouse (tested in `SummaryTests`).
+/// Starts summary CLIs, and `/usr/bin/security` for the Claude credential (`ClaudeKeychainCredentials`).
+/// The only process-launch path in Lighthouse (tested in `SummaryTests`).
 public protocol SummaryProcessLauncher: Sendable {
     func run(_ command: SummaryCommand, input: Data, timeout: TimeInterval) async -> ProcessOutcome
 }

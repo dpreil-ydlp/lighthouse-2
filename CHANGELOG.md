@@ -4,6 +4,15 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.9 — 2026-11-03
+
+### Fixed
+- No more Keychain prompts for Claude usage. Lighthouse now reads Claude
+  Code's sign-in item through Apple's `/usr/bin/security`, the tool Claude Code
+  itself uses for that item, so macOS does not ask. Before, the "Always Allow"
+  was tied to Lighthouse's own signature, and every update (and some Claude
+  Code token refreshes) asked again.
+
 ## 0.0.8 — 2026-11-03
 
 ### Changed
