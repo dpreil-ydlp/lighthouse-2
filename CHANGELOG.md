@@ -4,13 +4,34 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## Installer and README — 2026-11-03
+
+The app is unchanged at 0.0.12; this updates `install.sh` and the docs on `main`.
+
+### Fixed
+- `install.sh` opens the app after an update again. Right after the old copy
+  quit and the folder was replaced, macOS could refuse the launch with LSOpen
+  error -600, so the app was installed but not running. The installer now
+  retries for up to 10 seconds and checks that Lighthouse 2 is running. If it
+  still is not, it says so and asks you to open it from Applications.
+
+### Changed
+- README pictures retaken from 0.0.12 in test mode, with a new one of the
+  menu bar count. The README now describes **Needs you** (what counts, the
+  tags, the red count) and the compact usage line, and its Privacy section
+  states that a needs-you yes/no is stored and how it is judged with
+  summaries on and off.
+- Release notes for 0.0.2 added to `docs/release-notes/`.
+- The 0.0.12 entry and release notes now say that only T3 Code opens the exact
+  thread; Claude and Codex open their app, as since 0.0.2.
+
 ## 0.0.12 — 2026-11-03
 
 ### Changed
 - Opening a project lists every thread that needs you first, each with its own
   yellow **Needs you** tag (oldest wait first), then the usual threads.
 - **Needs you** tags are buttons. On a thread, the tag opens that thread in its
-  app. On a project, it opens the thread when one waits, and expands the row
+  app (the exact thread in T3 Code; Claude and Codex open their app). On a project, it opens the thread when one waits, and expands the row
   when several do. The row's T3 Code ↗ button is unchanged.
 
 ## 0.0.11 — 2026-11-03

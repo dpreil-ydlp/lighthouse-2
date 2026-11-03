@@ -190,9 +190,31 @@ install_app() {
     if [ "${LIGHTHOUSE_NO_OPEN:-0}" = "1" ]; then
         say "Not opening it (LIGHTHOUSE_NO_OPEN=1)."
     else
-        open "$TARGET"
-        say "Lighthouse 2 is running. Look for the lighthouse in the menu bar, or press Control-Option-Space."
+        open_app
     fi
+}
+
+# Opens the new copy. Right after the old copy quits and the folder is replaced, macOS can refuse
+# the launch (LSOpen error -600), so this retries for up to 10 seconds and checks the app runs.
+open_app() {
+    real="$(cd "$TARGET/Contents/MacOS" && pwd -P)/Lighthouse"
+    tries=0
+    while [ "$tries" -lt 10 ]; do
+        tries=$((tries + 1))
+        if open "$TARGET" 2>/dev/null; then
+            waited=0
+            while [ "$waited" -lt 5 ]; do
+                if [ -n "$(exact_pids "$TARGET/Contents/MacOS/Lighthouse" "$real")" ]; then
+                    say "Lighthouse 2 is running. Look for the lighthouse in the menu bar, or press Control-Option-Space."
+                    return 0
+                fi
+                waited=$((waited + 1))
+                sleep 1
+            done
+        fi
+        sleep 1
+    done
+    say "Installed, but macOS did not start it. Open \"$TARGET\" from Applications."
 }
 
 uninstall_app() {

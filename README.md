@@ -5,14 +5,16 @@ Version 0.0.12 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
 Lighthouse 2 is a menu bar app for people who run coding agents in Claude Code, Codex and T3 Code. Click the lighthouse in the menu bar, or press ⌃⌥Space, and one panel shows:
 
 - how much of your Claude and Codex limits is left, and whether your current pace runs out before the window resets,
-- which agent is waiting for your approval, has gone quiet, or has stalled,
+- which thread needs you: one waiting for your approval or input, or one whose last message asks you a question, offers a choice or hands you a task,
 - your projects, each opening to its threads and their subagents,
-- an Open button that takes you to the thread in the app that owns it: T3 Code, the ChatGPT (Codex) app, or the Claude app.
+- a button that opens the thread's own app: T3 Code opens the exact thread; the ChatGPT (Codex) app and the Claude app open to their main window, and the thread page has **Copy session ID**.
+
+When something needs you, a red count appears next to the lighthouse in the menu bar.
 
 It only watches. It never starts, stops, resumes, messages or approves an agent, and it never stores message text.
 
 <p>
-  <img src="docs/images/panel-light.png" width="400" alt="The Lighthouse 2 panel in light mode: Claude and Codex usage with pace, one approval waiting in trail-map, and the recipe-box project open to its three threads">
+  <img src="docs/images/panel-light.png" width="400" alt="The Lighthouse 2 panel in light mode: one line of usage per provider, trail-map tagged Needs you, and billing open to its two threads that need you">
   <img src="docs/images/panel-dark.png" width="400" alt="The same panel in dark mode">
 </p>
 
@@ -52,17 +54,25 @@ The panel opens with a short welcome. It lists the sources it found and offers t
 
 ## What you see
 
-**Usage with pace.** Each bar shows how much of a window is left. The tick marks where you would be at an even pace. Orange "in deficit" means you are using it faster than that and shows when you would run out; green "in reserve" means you are ahead. A provider page lists the projects with local activity in that window and their approximate local token counts.
+**Needs you.** A yellow **Needs you** tag marks each project and thread that is waiting on you. A thread counts when it asks for an approval or input, or when its turn has ended on a question, a choice or a task for you. A finished report or an optional offer does not count. Opening a project lists those threads first. Click a thread's tag to open it: T3 Code opens that thread; Claude and Codex open their app. On a project row, the tag opens the thread when only one is waiting, and opens the row when several are.
+
+In the menu bar, the lighthouse shows the number of threads waiting on you in red, and nothing else.
+
+<img src="docs/images/menu-bar.png" width="380" alt="The menu bar lighthouse alone when nothing waits, and with a red 3 or 12 next to it">
+
+How a thread is judged depends on thread summaries (see Privacy). With summaries on, the summary model also answers yes or no to "does this thread need you now?". With summaries off, Lighthouse 2 checks the wording of the thread's last message on your Mac. Either way, a thread you answered last never counts, and a running thread never counts.
+
+**Usage with pace.** The panel shows one line per provider. Click **USAGE** to see each window in full, with its pace and reset time. Each bar shows how much of a window is left. The tick marks where you would be at an even pace. Orange "in deficit" means you are using it faster than that and shows when you would run out; green "in reserve" means you are ahead. A provider page lists the projects with local activity in that window and their approximate local token counts.
 
 <img src="docs/images/usage-pace.png" width="400" alt="The Claude usage page: session 30 % left and 10 % in deficit, runs out in 1 h 17 m; week 83 % left; projects with local activity this window">
 
-**Projects, threads and subagents.** Active projects sit at the top, quiet ones fold away. A project opens to its threads; a thread opens to its state, last activity, local token count and subagents, with the button that opens it in its own app.
+**Projects, threads and subagents.** Active projects sit at the top, then the ones completed recently (24 hours by default). Quiet projects stay hidden unless you turn them on in Settings › General. Point at a project row to get a one-line button, such as **T3 Code ↗**, that opens the app of the thread named on the row. A project opens to its threads; a thread opens to its state, last activity, local token count and subagents, with the button that opens it in its own app.
 
 <img src="docs/images/project-threads.png" width="400" alt="The recipe-box project page: the thread Recipe card layout expanded, running, with one test-runner subagent and an Open Claude app button">
 
 **Settings.** Panes for General, Sources, Usage, Open-in, Notifications, Summaries and Projects. Summaries are off until you pick a provider.
 
-<img src="docs/images/settings-summaries.png" width="520" alt="Settings, Summaries pane: Off, Claude or ChatGPT, a cap of 30 calls per hour, and what is sent">
+<img src="docs/images/settings-summaries.png" width="520" alt="Settings, Summaries pane: Off, Claude or ChatGPT, a cap of 30 calls per hour, and what is sent (nothing while Off)">
 
 ## Privacy
 
@@ -77,17 +87,17 @@ Lighthouse 2 reads these files in place and never writes to them:
 | T3 Code | `~/.t3/userdata/statev2.sqlite` (opened read-only), `~/.t3/userdata/environment-id` |
 | Project folders | `.git` metadata of the folders your sessions ran in |
 
-From session files it keeps metadata only: paths, IDs, titles, times, token counters and states. It does not store or log message text, prompts, tool output or approval text, and it does not copy the T3 or Codex databases. Symbolic links inside the session folders are not followed.
+From session files it keeps metadata only: paths, IDs, titles, times, token counters, states and a yes/no for "needs you". To decide that yes/no with summaries off, it reads the last message of each finished thread from the last 48 hours on your Mac and checks its wording; nothing is sent. It does not store or log message text, prompts, tool output or approval text, and it does not copy the T3 or Codex databases. Symbolic links inside the session folders are not followed.
 
 It writes only its own files:
 
-- `~/Library/Application Support/Lighthouse/lighthouse.sqlite`: the metadata above, your pins and settings, and, with summaries on, each summary line and a hash of the request that made it,
+- `~/Library/Application Support/Lighthouse/lighthouse.sqlite`: the metadata above, your pins and settings, and, with summaries on, each summary line, its needs-you yes/no and a hash of the request that made it,
 - `~/Library/Caches/com.lighthouse.v2/summary-scratch`: an empty folder the summary command runs in (summaries on only),
 - `~/Library/Preferences/com.lighthouse.v2.plist`: the Settings window position.
 
 **Network.** With usage turned on, Lighthouse 2 sends one HTTPS request every 2 minutes per provider, to `api.anthropic.com/api/oauth/usage` (Claude) or `chatgpt.com/backend-api/wham/usage` (Codex), with your existing sign-in token. It keeps tokens in memory only, never refreshes them, and never writes them to its store or log. It opens no listening port. With usage off and summaries off, it sends nothing.
 
-**Thread summaries are opt-in and send text.** If you turn them on in Settings › Summaries, Lighthouse 2 runs the `claude` or `codex` command-line tool you already have, signed in to your own subscription, to write a one-line summary of each active thread. Each request carries the thread's title, project name, state and the last 24 KB of user and assistant text. Tool calls, tool output and file contents are left out, and known secret patterns (API keys, tokens, private keys, `password=…`) are replaced with `[redacted]` before sending. That text goes to Anthropic or OpenAI, whichever you picked. The default models are `claude-haiku-5-5` and `gpt-6-luna`; at most 30 calls per hour by default. Only the summary and a hash of the request are stored. The Codex CLI also sends your global `~/.codex/AGENTS.md`; codex-cli 0.165.0 has no switch to leave it out. Turning summaries Off stops all reading and sending.
+**Thread summaries are opt-in and send text.** If you turn them on in Settings › Summaries, Lighthouse 2 runs the `claude` or `codex` command-line tool you already have, signed in to your own subscription, to write a one-line summary of each active thread. Each request carries the thread's title, project name, state and the last 24 KB of user and assistant text. Tool calls, tool output and file contents are left out, and known secret patterns (API keys, tokens, private keys, `password=…`) are replaced with `[redacted]` before sending. That text goes to Anthropic or OpenAI, whichever you picked. The default models are `claude-haiku-5-5` and `gpt-6-luna`; at most 30 calls per hour by default. The same call also answers whether the thread needs you. Only the summary, that yes/no and a hash of the request are stored. The Codex CLI also sends your global `~/.codex/AGENTS.md`; codex-cli 0.165.0 has no switch to leave it out. Turning summaries Off stops all reading and sending.
 
 ## Requirements
 
@@ -123,6 +133,10 @@ scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.12.zip and its .sha
 `scripts/package.sh` builds with SwiftPM, so it works without opening Xcode. It strips the binary (symbols go to `dist/Lighthouse.app.dSYM`), signs ad-hoc and writes a zip that holds only `Lighthouse 2.app`. Set `SIGN_IDENTITY` to sign with your own certificate. `App/Lighthouse.xcodeproj`, generated from `App/project.yml` with XcodeGen, builds the same app in Xcode.
 
 The app's bundle id is `com.lighthouse.v2`. Settings, permissions and the store are tied to that id, so they carry over from earlier builds.
+
+## Changes
+
+See [CHANGELOG.md](CHANGELOG.md). Notes for each release are in [docs/release-notes/](docs/release-notes/).
 
 ## Security
 
