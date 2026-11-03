@@ -4,6 +4,12 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.10 — 2026-11-03
+
+### Changed
+- The menu bar is back to the lighthouse with the count next to it, now in
+  red. The red diamond before the lighthouse (0.0.8) is gone.
+
 ## 0.0.9 — 2026-11-03
 
 ### Fixed

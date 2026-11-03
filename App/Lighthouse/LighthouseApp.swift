@@ -38,22 +38,22 @@ struct LighthouseApp: App {
 
 /// Menu bar icon (SPEC 2.7 §6.1): rest, near-limit arc (amber ≤ 20 % left, red ≤ 5 % left), optional
 /// least-left text ("12% left"),
-/// 40 % opacity when stale; threads waiting for the owner: a red ◆ and count before the logo; gone
-/// quiet (stalled or silent): the filled logo (no animation). Marks combine; the VoiceOver label states all of them.
+/// 40 % opacity when stale; attention (waiting for the owner, gone quiet): the filled logo and the
+/// count in red after it (no animation). Marks combine; the VoiceOver label states all of them.
 struct MenuBarGlyph: View {
     var stale: Bool
     var sourcesStale: Bool
     var usage: UsageGlyphState
     var showPercent: Bool
-    /// Threads waiting for the owner: a red ◆ and count before the logo.
+    /// Threads waiting for the owner and gone-quiet items: the filled logo with the total in red after it.
     var needsYou = 0
-    /// Stalled threads and silent subagents: the filled logo, as before.
     var goneQuiet = 0
 
     var body: some View {
+        let attention = needsYou + goneQuiet
         HStack(spacing: 2) {
-            if needsYou > 0 { Image(nsImage: LighthouseGlyph.count(needsYou)) }
-            Image(nsImage: LighthouseGlyph.image(nearLimit: usage.nearLimit, filled: goneQuiet > 0))
+            Image(nsImage: LighthouseGlyph.image(nearLimit: usage.nearLimit, filled: attention > 0))
+            if attention > 0 { Image(nsImage: LighthouseGlyph.count(attention)) }
             if showPercent, let left = usage.worstLeft {
                 Text("\(Int(left.rounded()))% left").monospacedDigit()
             }
@@ -85,11 +85,11 @@ enum LighthouseGlyph {
     static let filledAmber: NSImage = make(arc: .systemOrange, filled: true)
     static let filledRed: NSImage = make(arc: .systemRed, filled: true)
 
-    /// "Needs you" in red, before the logo: ◆ and the count. Drawn as a non-template image, since
-    /// menu bar text is always tinted to the bar's color.
+    /// The attention count in red, after the logo. Drawn as a non-template image, since menu bar
+    /// text is always tinted to the bar's color.
     @MainActor static func count(_ value: Int) -> NSImage {
         if let cached = counts[value] { return cached }
-        let text = NSAttributedString(string: "◆\u{2009}" + (value > 99 ? "99+" : "\(value)"), attributes: [
+        let text = NSAttributedString(string: value > 99 ? "99+" : "\(value)", attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .bold),
             .foregroundColor: NSColor.systemRed,
         ])
