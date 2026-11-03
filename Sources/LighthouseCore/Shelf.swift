@@ -53,6 +53,23 @@ public struct ProjectSummary: Sendable, Hashable, Identifiable {
     public var runningThreadCount: Int { threads.filter { $0.state == .running }.count }
     /// Open requests waiting for the owner (approval or input), threads and subagents together.
     public var waitingItems: [AttentionItem] { attentionItems.filter { $0.kind == .waitingForOwner } }
+
+    /// Threads that wait for the owner (their own request or reply, or a waiting subagent), oldest
+    /// wait first. Stopped threads count too: a finished run can still be waiting on the owner.
+    public var waitingThreads: [SessionThread] {
+        var seen = Set<String>()
+        let ids = waitingItems.sorted { $0.enteredAt < $1.enteredAt }.map(\.threadId).filter { seen.insert($0).inserted }
+        return ids.compactMap { id in threads.first { $0.id == id } }
+    }
+
+    /// Rows shown when the project is expanded: every waiting thread first, then live threads in
+    /// shelf order, up to `limit` rows in all (more when more threads wait).
+    public func expansionThreads(limit: Int) -> [SessionThread] {
+        let waiting = waitingThreads
+        let ids = Set(waiting.map(\.id))
+        let rest = liveThreads.filter { !ids.contains($0.id) }
+        return waiting + rest.prefix(max(0, limit - waiting.count))
+    }
     public var mostRecentThread: SessionThread? { threads.max { $0.latestActivityAt < $1.latestActivityAt } }
 }
 
@@ -311,10 +328,12 @@ public enum FocusOrder {
             for project in visible {
                 stops.append(.project(project.identity.root))
                 guard project.identity.root == expandedProject else { continue }
-                for thread in project.liveThreads.prefix(ShelfBuilder.threadsShownExpanded) {
+                // Same rows as the expanded view: waiting threads first (owner 2026-11-03).
+                let shown = project.expansionThreads(limit: ShelfBuilder.threadsShownExpanded)
+                for thread in shown {
                     stops.append(.thread(project: project.identity.root, thread: thread.id))
                 }
-                if project.threads.count > ShelfBuilder.threadsShownExpanded || !project.stoppedThreads.isEmpty {
+                if project.threads.count > shown.count {
                     stops.append(.showAll(project: project.identity.root))
                 }
             }

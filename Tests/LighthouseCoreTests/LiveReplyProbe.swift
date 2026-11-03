@@ -64,3 +64,31 @@ import Testing
         }
     }
 }
+
+/// Opt-in (`LIGHTHOUSE_LIVE_WAITING=<file>`): the shelf's waiting items with the judgments in `<file>`
+/// (`thread_id|activity_at|needs_owner` lines, as stored). Prints, per project with a waiting item,
+/// each item's thread title, kind, thread state, and whether that thread is listed when the row is
+/// expanded (live threads only). Titles and states only.
+@Suite struct LiveWaitingProbe {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["LIGHTHOUSE_LIVE_WAITING"] != nil))
+    func liveWaitingItems() async throws {
+        let path = ProcessInfo.processInfo.environment["LIGHTHOUSE_LIVE_WAITING"]!
+        var judgments: [String: ReplyJudgment] = [:]
+        for line in try String(contentsOfFile: path, encoding: .utf8).split(separator: "\n") {
+            let f = line.split(separator: "|").map(String.init)
+            guard f.count == 3, let at = Double(f[1]) else { continue }
+            judgments[f[0]] = ReplyJudgment(activityAt: Date(timeIntervalSince1970: at), needsOwner: f[2] == "1")
+        }
+        let engine = Engine(collectors: [ClaudeCodeCollector(), CodexCollector()], store: nil, t3: T3Collector())
+        await engine.setReplyJudgments(judgments)
+        let snapshot = await engine.indexToCompletion()
+        for project in snapshot.projects where !project.waitingItems.isEmpty {
+            print("LIVE waiting project=\(project.identity.name) tag=\(project.waitingItems.count) threads=\(project.threads.count) live=\(project.liveThreads.count)")
+            for item in project.waitingItems {
+                let thread = project.threads.first { $0.id == item.threadId }
+                let listed = project.liveThreads.contains { $0.id == item.threadId }
+                print("LIVE   item label=\(item.label.prefix(70)) sub=\(item.subagentId != nil) state=\(thread?.state.rawValue ?? "?") listedWhenExpanded=\(listed)")
+            }
+        }
+    }
+}

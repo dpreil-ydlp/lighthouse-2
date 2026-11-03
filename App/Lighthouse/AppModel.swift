@@ -738,6 +738,12 @@ final class AppModel {
 
     // MARK: Navigation handoffs (V-OBS: open, reveal, copy only)
 
+    /// A "Needs you" tag was clicked: open that thread in its app.
+    func openWaiting(_ thread: SessionThread) {
+        log.notice("needs-you open thread=\(thread.id, privacy: .public) app=\(thread.owningApp.rawValue, privacy: .public)")
+        perform(router.target(for: thread))
+    }
+
     func perform(_ action: OpenAction) {
         let workspace = NSWorkspace.shared
         switch action {

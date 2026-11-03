@@ -135,3 +135,30 @@ import Testing
         #expect(scanner.mark([thread(path: path, state: .idle, minutesAgo: 2, now: now)], now: now)[0].asksOwnerAt != nil)
     }
 }
+
+/// Expanded rows list every thread that needs the owner first (owner 2026-11-03).
+@Suite struct WaitingExpansionTests {
+    let now = Date()
+
+    func thread(_ id: String, _ state: ThreadState, minutesAgo: Double, asks: Bool = false) -> SessionThread {
+        var t = SessionThread(id: "claude:\(id)", owningApp: .claudeCode, providerIdentities: [ProviderIdentity(provider: .claude, nativeId: id)],
+                              title: "T\(id)", cwd: "/x", state: state, sourceReadAt: now, lastActivityAt: now.addingTimeInterval(-minutesAgo * 60))
+        if asks { t.asksOwnerAt = t.lastActivityAt }
+        return t
+    }
+
+    @Test func waitingThreadsComeFirstThenLiveOnes() {
+        let threads = [thread("run", .running, minutesAgo: 1), thread("a", .idle, minutesAgo: 2), thread("b", .idle, minutesAgo: 3),
+                       thread("w1", .idle, minutesAgo: 30, asks: true), thread("w2", .stopped, minutesAgo: 90, asks: true)]
+        let identity = ProjectIdentity(root: "unassigned:/x", name: "No project", kind: .unassigned)
+        let project = ShelfBuilder.summarize(threads: threads, identities: Array(repeating: identity, count: threads.count), now: now)[0]
+        // Oldest wait first; a stopped thread that waits is listed too.
+        #expect(project.waitingThreads.map(\.id) == ["claude:w2", "claude:w1"])
+        #expect(project.expansionThreads(limit: 3).map(\.id) == ["claude:w2", "claude:w1", "claude:run"])
+        // More waiting threads than the limit: all of them are shown.
+        #expect(project.expansionThreads(limit: 1).map(\.id) == ["claude:w2", "claude:w1"])
+        // Nothing waiting: the usual first live threads.
+        let quiet = ShelfBuilder.summarize(threads: Array(threads.prefix(3)), identities: Array(repeating: identity, count: 3), now: now)[0]
+        #expect(quiet.expansionThreads(limit: 3).map(\.id) == quiet.liveThreads.prefix(3).map(\.id))
+    }
+}

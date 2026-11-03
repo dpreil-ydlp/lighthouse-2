@@ -8,6 +8,8 @@ struct ThreadRow: View {
     let projectRoot: String
     /// Compact rows sit under a shelf project; full rows sit on the project page.
     var compact = false
+    /// The thread waits for the owner: a "Needs you" tag that opens the thread.
+    var waiting = false
 
     private var expanded: Bool { model.expandedThreads.contains(thread.id) }
     private var summary: ThreadSummary? { model.summary(for: thread) }
@@ -15,48 +17,64 @@ struct ThreadRow: View {
         compact ? model.focused == .thread(project: projectRoot, thread: thread.id) : model.page.focused == .thread(thread.id)
     }
 
+    private func toggle() {
+        if model.expandedThreads.remove(thread.id) == nil { model.expandedThreads.insert(thread.id) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button {
-                if model.expandedThreads.remove(thread.id) == nil { model.expandedThreads.insert(thread.id) }
-            } label: {
-                HStack(spacing: 8) {
-                    if compact {
-                        StateDot(state: thread.state)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
-                            .rotationEffect(.degrees(expanded ? 90 : 0))
-                            .frame(width: 10)
-                            .foregroundStyle(.secondary)
+            // The tag is its own button beside the row's toggle buttons (a button inside a button
+            // does not get the click on macOS).
+            HStack(spacing: 8) {
+                Button(action: toggle) {
+                    HStack(spacing: 8) {
+                        if compact {
+                            StateDot(state: thread.state)
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .rotationEffect(.degrees(expanded ? 90 : 0))
+                                .frame(width: 10)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(thread.displayTitle)
+                            .font(.system(size: compact ? 12.5 : 13))
+                            .foregroundStyle(thread.state == .stopped ? .secondary : .primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer(minLength: 6)
                     }
-                    Text(thread.displayTitle)
-                        .font(.system(size: compact ? 12.5 : 13))
-                        .foregroundStyle(thread.state == .stopped ? .secondary : .primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Spacer(minLength: 6)
-                    Text("\(thread.owningApp.chipLabel) · \(StateText.label(thread.state)) · \(Age.short(thread.latestActivityAt, now: model.now))")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .layoutPriority(1)
-                    if compact {
-                        Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
-                    }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(thread.displayTitle), \(thread.owningApp.displayName), \(StateText.label(thread.state)), \(Age.short(thread.latestActivityAt, now: model.now)) ago"
+                                    + (waiting ? ", needs you" : "") + (summary.map { ", AI summary: \($0.line1)" } ?? ""))
+                if waiting {
+                    NeedsYouTag(help: "Open in \(thread.owningApp.displayName)") { model.openWaiting(thread) }
+                }
+                Button(action: toggle) {
+                    HStack(spacing: 8) {
+                        Text("\(thread.owningApp.chipLabel) · \(StateText.label(thread.state)) · \(Age.short(thread.latestActivityAt, now: model.now))")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                        if compact {
+                            Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .layoutPriority(1)
+                .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
             .padding(.leading, compact ? Metrics.inset + 30 : Metrics.inset)
             .padding(.trailing, Metrics.inset)
             .padding(.top, 5)
             .padding(.bottom, summary == nil ? 5 : 1)
             .background(focused ? Color.accentColor.opacity(0.12) : .clear)
             .id(compact ? AnyHashable(FocusOrder.Stop.thread(project: projectRoot, thread: thread.id)) : AnyHashable(PageNavigation.Stop.thread(thread.id)))
-            .accessibilityLabel("\(thread.displayTitle), \(thread.owningApp.displayName), \(StateText.label(thread.state)), \(Age.short(thread.latestActivityAt, now: model.now)) ago"
-                                + (summary.map { ", AI summary: \($0.line1)" } ?? ""))
 
             if let summary, !expanded {
                 SummaryLine(summary: summary)
@@ -332,10 +350,11 @@ struct ProjectPage: View {
     }
 
     private func threadList(_ project: ProjectSummary, current: [SessionThread], earlier: [SessionThread]) -> some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
+        let waiting = Set(project.waitingThreads.map(\.id))
+        return LazyVStack(alignment: .leading, spacing: 0) {
             Text("THREADS · \(project.threads.count)").font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(.tertiary)
                 .padding(.horizontal, Metrics.inset).padding(.top, 10).padding(.bottom, 4)
-            ForEach(current) { ThreadRow(thread: $0, projectRoot: project.identity.root) }
+            ForEach(current) { ThreadRow(thread: $0, projectRoot: project.identity.root, waiting: waiting.contains($0.id)) }
             if !earlier.isEmpty {
                 Button { model.page.showEarlier.toggle() } label: {
                     HStack(spacing: 6) {
@@ -350,7 +369,7 @@ struct ProjectPage: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(model.page.focused == .earlier ? Color.accentColor.opacity(0.12) : .clear)
                 .id(AnyHashable(PageNavigation.Stop.earlier))
-                if showEarlier { ForEach(earlier) { ThreadRow(thread: $0, projectRoot: project.identity.root) } }
+                if showEarlier { ForEach(earlier) { ThreadRow(thread: $0, projectRoot: project.identity.root, waiting: waiting.contains($0.id)) } }
             }
         }
         .padding(.bottom, 6)

@@ -156,7 +156,7 @@ struct ProjectRow: View {
                     if let tag = ShelfBuilder.ownerTag(for: project, prefs: model.prefs), project.status == .needsYou {
                         Text(tag).font(.system(size: 10)).foregroundStyle(.secondary)
                     }
-                    StatusTag(project: project)
+                    StatusTag(project: project) { needsYouTapped() }
                     Spacer(minLength: 4)
                     if hovering || model.focused == stop {
                         Button(primary.action.shortLabel) { model.perform(primary.action) }
@@ -197,23 +197,39 @@ struct ProjectRow: View {
         model.expandedProject = expanded ? nil : root
     }
 
+    /// The row's "Needs you" tag: one waiting thread opens it; several expand the row, where each
+    /// waiting thread is listed first with its own tag.
+    private func needsYouTapped() {
+        let waiting = project.waitingThreads
+        if waiting.count == 1, let thread = waiting.first {
+            model.openWaiting(thread)
+        } else {
+            model.expandedProject = root
+            log.notice("needs-you expand count=\(waiting.count, privacy: .public)")
+        }
+    }
+
     @ViewBuilder private var expansion: some View {
-        let live = project.liveThreads
+        // Threads that need the owner come first, each with its own tag (owner 2026-11-03).
+        let shown = project.expansionThreads(limit: ShelfBuilder.threadsShownExpanded)
+        let waiting = Set(project.waitingThreads.map(\.id))
+        let shownIds = Set(shown.map(\.id))
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(live.prefix(ShelfBuilder.threadsShownExpanded)) { thread in
-                ThreadRow(thread: thread, projectRoot: root, compact: true)
+            ForEach(shown) { thread in
+                ThreadRow(thread: thread, projectRoot: root, compact: true, waiting: waiting.contains(thread.id))
             }
-            let hidden = project.threads.count - min(live.count, ShelfBuilder.threadsShownExpanded)
+            let hidden = project.threads.count - shown.count
             if hidden > 0 {
                 let stop = FocusOrder.Stop.showAll(project: root)
+                let liveHidden = project.liveThreads.contains { !shownIds.contains($0.id) }
                 Button {
                     model.route = .project(root)
                 } label: {
                     HStack(spacing: 4) {
-                        if live.count > ShelfBuilder.threadsShownExpanded {
+                        if liveHidden {
                             Text("Show all \(project.threads.count) threads")
                         } else {
-                            Text("\(project.stoppedThreads.count) stopped")
+                            Text("\(hidden) stopped")
                         }
                         Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold))
                     }
@@ -248,18 +264,14 @@ struct SourceChip: View {
 /// the row's right edge gives the "how long".
 struct StatusTag: View {
     let project: ProjectSummary
+    var onNeedsYou: () -> Void = {}
 
     var body: some View {
-        let waiting = project.waitingItems
+        let waiting = project.waitingThreads
         if !waiting.isEmpty {
-            Text(waiting.count > 1 ? "Needs you · \(waiting.count)" : "Needs you")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.black.opacity(0.85))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 1.5)
-                .background(Capsule().fill(Color.yellow))
-                .fixedSize()
-                .help(waiting.map(\.label).joined(separator: "\n"))
+            NeedsYouTag(count: waiting.count, help: waiting.count == 1
+                        ? "Open “\(waiting[0].displayTitle)”"
+                        : "Show the \(waiting.count) threads that need you", action: onNeedsYou)
         } else {
             switch project.status {
             case .working:
@@ -276,6 +288,31 @@ struct StatusTag: View {
                 EmptyView() // stalled or silent: the amber line below says why
             }
         }
+    }
+}
+
+/// The yellow "Needs you" tag. A button: on a thread it opens that thread; on a project row it
+/// opens the one waiting thread or expands the row (owner 2026-11-03).
+struct NeedsYouTag: View {
+    var count = 1
+    var help: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(count > 1 ? "Needs you · \(count)" : "Needs you")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.black.opacity(0.85))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1.5)
+                .background(Capsule().fill(Color.yellow))
+                .fixedSize()
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(count > 1 ? "Needs you, \(count) threads" : "Needs you")
+        .accessibilityHint(help)
     }
 }
 

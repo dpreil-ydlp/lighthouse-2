@@ -4,6 +4,15 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.12 — 2026-11-03
+
+### Changed
+- Opening a project lists every thread that needs you first, each with its own
+  yellow **Needs you** tag (oldest wait first), then the usual threads.
+- **Needs you** tags are buttons. On a thread, the tag opens that thread in its
+  app. On a project, it opens the thread when one waits, and expands the row
+  when several do. The row's T3 Code ↗ button is unchanged.
+
 ## 0.0.11 — 2026-11-03
 
 ### Fixed
