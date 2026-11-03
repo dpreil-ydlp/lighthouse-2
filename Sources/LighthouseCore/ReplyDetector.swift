@@ -1,10 +1,10 @@
 import Foundation
 
-/// "Waiting on you" from wording (SPEC 2.10): many agents finish a turn with a question or a request
-/// for the owner's next step but raise no approval or input event. When a thread's turn has ended and
-/// its last message is the agent's, that message is read locally and checked against fixed wording
-/// rules. No model call, nothing sent; only the yes/no result is kept (`SessionThread.asksOwnerAt`),
-/// never the text.
+/// "Waiting on you" without an approval or input event (SPEC 2.10). Many agents end a turn needing
+/// the owner (a question, a choice, a task to do) but raise no event. With summaries on, the summary
+/// model judges it from the conversation (`ThreadSummary.needsOwner`, see `ReplyJudgment`). With
+/// summaries off, this fallback reads the agent's last message locally against fixed wording rules:
+/// no model call, nothing sent. Either way only a yes/no is kept (`SessionThread.asksOwnerAt`).
 public enum ReplyDetector {
     /// Only the end of the message counts: a question in the middle of a report is not a hand-off.
     static let tailCharacters = 600
@@ -22,7 +22,8 @@ public enum ReplyDetector {
         return hasDirectAsk(lower) || endsWithOwnerQuestion(tail)
     }
 
-    /// The last `tailCharacters` of prose: fenced code and inline code removed.
+    /// The last paragraph of prose: fenced code, inline code and quoted text removed (a quoted
+    /// example such as “Want me to push it?” is not a question to the owner).
     static func closingText(_ message: String) -> String {
         var text = message
         // Drop fenced blocks (an unclosed fence drops to the end).
@@ -43,8 +44,10 @@ public enum ReplyDetector {
             guard footer else { break }
             lines.removeLast()
         }
-        let trimmed = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return String(trimmed.suffix(tailCharacters))
+        var prose = lines.joined(separator: "\n")
+        prose = prose.replacingOccurrences(of: #""[^"\n]{12,200}"|“[^”\n]{12,200}”"#, with: "a quote", options: .regularExpression)
+        let paragraphs = prose.components(separatedBy: "\n\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return String((paragraphs.last ?? "").suffix(tailCharacters))
     }
 
     /// Requests that hand the next step to the owner, wherever they sit in the closing text.
@@ -100,30 +103,58 @@ public enum ReplyDetector {
     }
 }
 
-/// Reads each finished thread's last message once per change (keyed by thread id and last activity),
-/// so an unchanged thread costs nothing on later passes.
+/// The summary model's yes/no for a thread at one activity time.
+public struct ReplyJudgment: Sendable, Hashable {
+    public var activityAt: Date
+    public var needsOwner: Bool
+    public init(activityAt: Date, needsOwner: Bool) {
+        self.activityAt = activityAt
+        self.needsOwner = needsOwner
+    }
+
+    /// Judgments from stored summaries that carry one.
+    public static func from(_ summaries: [String: ThreadSummary]) -> [String: ReplyJudgment] {
+        summaries.compactMapValues { s in s.needsOwner.map { ReplyJudgment(activityAt: s.activityAt, needsOwner: $0) } }
+    }
+}
+
+/// Marks finished threads that wait for the owner. `judgments` non-nil means summaries are on: only
+/// the model's judgment for the thread's current activity counts (none yet means not marked). Nil
+/// means summaries are off: the wording fallback reads each thread's last message once per change.
 public struct ReplyScanner: Sendable {
-    private var cache: [String: (activity: Date, asks: Bool)] = [:]
+    /// Per thread at one activity time and newest transcript: whether the agent spoke last, and the
+    /// wording verdict.
+    private var cache: [String: (activity: Date, path: String?, agentLast: Bool, asks: Bool)] = [:]
     private let access: SourceAccess
 
     public init(access: SourceAccess = ReadOnlyFileSystem()) { self.access = access }
 
     /// Sets `asksOwnerAt` on finished, recent threads whose last agent message hands off to the owner.
-    public mutating func mark(_ threads: [SessionThread], now: Date) -> [SessionThread] {
+    public mutating func mark(_ threads: [SessionThread], now: Date, judgments: [String: ReplyJudgment]? = nil) -> [SessionThread] {
         var seen = Set<String>()
         let marked = threads.map { thread -> SessionThread in
             var thread = thread
             thread.asksOwnerAt = nil
             guard Self.eligible(thread, now: now) else { return thread }
             seen.insert(thread.id)
-            let asks: Bool
-            if let hit = cache[thread.id], hit.activity == thread.lastActivityAt {
-                asks = hit.asks
+            let read: (agentLast: Bool, asks: Bool)
+            if let hit = cache[thread.id], hit.activity == thread.lastActivityAt, hit.path == thread.transcriptPaths.first {
+                read = (hit.agentLast, hit.asks)
             } else {
-                asks = ReplyDetector.lastAgentMessage(paths: thread.transcriptPaths, access: access).map(ReplyDetector.asksOwner) ?? false
-                cache[thread.id] = (thread.lastActivityAt, asks)
+                let message = ReplyDetector.lastAgentMessage(paths: thread.transcriptPaths, access: access)
+                read = (message != nil, message.map(ReplyDetector.asksOwner) ?? false)
+                cache[thread.id] = (thread.lastActivityAt, thread.transcriptPaths.first, read.agentLast, read.asks)
             }
-            if asks { thread.asksOwnerAt = thread.lastActivityAt }
+            // The owner wrote last: the next move is the agent's, whatever the model said.
+            guard read.agentLast else { return thread }
+            let waits: Bool
+            if let judgments {
+                guard let judgment = judgments[thread.id], judgment.activityAt >= thread.lastActivityAt else { return thread }
+                waits = judgment.needsOwner
+            } else {
+                waits = read.asks
+            }
+            if waits { thread.asksOwnerAt = thread.lastActivityAt }
             return thread
         }
         cache = cache.filter { seen.contains($0.key) }

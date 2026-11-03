@@ -178,7 +178,8 @@ public actor SummaryService {
         }
         guard let (line1, line2) = SummaryText.lines(from: cleanAnswer) else { return finish(.emptyAnswer) }
         let summary = ThreadSummary(threadId: candidate.threadId, line1: line1, line2: line2, madeAt: now,
-                                    activityAt: candidate.lastActivityAt, inputHash: request.inputHash, provider: provider, model: model)
+                                    activityAt: candidate.lastActivityAt, inputHash: request.inputHash, provider: provider, model: model,
+                                    needsOwner: SummaryText.needsOwner(from: cleanAnswer) ?? false)
         summaries[candidate.threadId] = summary
         failures[candidate.threadId] = nil
         store?.saveSummary(summary)

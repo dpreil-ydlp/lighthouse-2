@@ -24,7 +24,8 @@ struct LighthouseApp: App {
                 .environment(model)
         } label: {
             MenuBarGlyph(stale: model.glyphStale, sourcesStale: model.allSourcesStale, usage: model.glyph,
-                         showPercent: model.usageSettings.showWorstPercent, attention: model.attentionTotal)
+                         showPercent: model.usageSettings.showWorstPercent, needsYou: model.attentionCounts[.needsYou] ?? 0,
+                         goneQuiet: model.attentionCounts[.goneQuiet] ?? 0)
         }
         .menuBarExtraStyle(.window)
 
@@ -37,19 +38,22 @@ struct LighthouseApp: App {
 
 /// Menu bar icon (SPEC 2.7 §6.1): rest, near-limit arc (amber ≤ 20 % left, red ≤ 5 % left), optional
 /// least-left text ("12% left"),
-/// 40 % opacity when stale, and attention: filled glyph + count of open, unacknowledged items (no
-/// animation). Marks combine; the VoiceOver label states all of them.
+/// 40 % opacity when stale; threads waiting for the owner: a red ◆ and count before the logo; gone
+/// quiet (stalled or silent): the filled logo (no animation). Marks combine; the VoiceOver label states all of them.
 struct MenuBarGlyph: View {
     var stale: Bool
     var sourcesStale: Bool
     var usage: UsageGlyphState
     var showPercent: Bool
-    var attention = 0
+    /// Threads waiting for the owner: a red ◆ and count before the logo.
+    var needsYou = 0
+    /// Stalled threads and silent subagents: the filled logo, as before.
+    var goneQuiet = 0
 
     var body: some View {
         HStack(spacing: 2) {
-            Image(nsImage: LighthouseGlyph.image(nearLimit: usage.nearLimit, filled: attention > 0))
-            if attention > 0 { Image(nsImage: LighthouseGlyph.count(attention)) }
+            if needsYou > 0 { Image(nsImage: LighthouseGlyph.count(needsYou)) }
+            Image(nsImage: LighthouseGlyph.image(nearLimit: usage.nearLimit, filled: goneQuiet > 0))
             if showPercent, let left = usage.worstLeft {
                 Text("\(Int(left.rounded()))% left").monospacedDigit()
             }
@@ -61,7 +65,8 @@ struct MenuBarGlyph: View {
 
     private var label: String {
         var parts = [AppIdentity.name]
-        if attention > 0 { parts.append("\(attention) item\(attention == 1 ? "" : "s") need attention") }
+        if needsYou > 0 { parts.append("\(needsYou) waiting for you") }
+        if goneQuiet > 0 { parts.append("\(goneQuiet) gone quiet") }
         if usage.nearLimit != .none, let worst = usage.worstDescription {
             parts.append("\(usage.nearLimit == .red ? "at limit" : "near limit"): \(worst)")
         }
@@ -80,11 +85,11 @@ enum LighthouseGlyph {
     static let filledAmber: NSImage = make(arc: .systemOrange, filled: true)
     static let filledRed: NSImage = make(arc: .systemRed, filled: true)
 
-    /// The attention count in red (owner request): drawn as a non-template image, since menu bar
-    /// text is always tinted to the bar's color.
+    /// "Needs you" in red, before the logo: ◆ and the count. Drawn as a non-template image, since
+    /// menu bar text is always tinted to the bar's color.
     @MainActor static func count(_ value: Int) -> NSImage {
         if let cached = counts[value] { return cached }
-        let text = NSAttributedString(string: value > 99 ? "99+" : "\(value)", attributes: [
+        let text = NSAttributedString(string: "◆\u{2009}" + (value > 99 ? "99+" : "\(value)"), attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .bold),
             .foregroundColor: NSColor.systemRed,
         ])

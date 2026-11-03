@@ -85,7 +85,8 @@ enum ReceiptSnapshot {
             ("≤ 5% left", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .red, worstPercent: 97, worstDescription: nil, allStale: false), showPercent: false)),
             ("+ least left", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .amber, worstPercent: 88, worstDescription: nil, allStale: false), showPercent: true)),
             ("stale", MenuBarGlyph(stale: true, sourcesStale: false, usage: UsageGlyphState(nearLimit: .none, worstPercent: nil, worstDescription: nil, allStale: true), showPercent: false)),
-            ("attention 2", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .none, worstPercent: 41, worstDescription: nil, allStale: false), showPercent: false, attention: 2)),
+            ("needs you 2", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .none, worstPercent: 41, worstDescription: nil, allStale: false), showPercent: false, needsYou: 2)),
+            ("gone quiet 1", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .none, worstPercent: 41, worstDescription: nil, allStale: false), showPercent: false, goneQuiet: 1)),
         ]
         let strip = HStack(spacing: 18) {
             ForEach(states, id: \.0) { label, glyph in

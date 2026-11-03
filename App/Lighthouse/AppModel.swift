@@ -262,6 +262,8 @@ final class AppModel {
             waker.wake()
         }
         let engine = self.engine
+        let summaryService: SummaryService = self.summaryService
+        let summariesOn = summarySettings.isOn
         // Indexing runs at utility QoS so the panel stays responsive while it reads (SPEC §3.2).
         // M1-01: build the panel window invisibly at launch. Prefer to do it right after the last
         // known shelf is published, so the first full render of the rows also happens inside the
@@ -273,6 +275,8 @@ final class AppModel {
             await MainActor.run { self?.warmUpOnce() }
         }
         Task(priority: .utility) { [weak self] in
+            // Before the first observed pass, so no wording guess runs while the model judges (SPEC 2.10).
+            await engine.setReplyJudgments(summariesOn ? ReplyJudgment.from(await summaryService.all()) : nil)
             let started = Date()
             let first = await engine.indexToCompletion(progressInterval: 5) { [weak self] snapshot in
                 await Self.deliver(snapshot, to: self)
@@ -375,9 +379,24 @@ final class AppModel {
         let service: SummaryService = summaryService
         let all = await service.all()
         let status = SummaryStatus(callsLastHour: await service.callsInLastHour(), last: await service.lastReport?.outcome)
-        if all != summaries { summaries = all }
+        if all != summaries {
+            summaries = all
+            await pushReplyJudgments()
+        }
         if status != summaryStatus { summaryStatus = status }
     }
+
+    /// Hands the model's "needs the owner" judgments to the engine (or nil with summaries off, for the
+    /// wording fallback) and re-resolves the shelf when they changed.
+    func pushReplyJudgments() async {
+        let judgments = summarySettings.isOn ? ReplyJudgment.from(summaries) : nil
+        guard judgments != lastJudgments else { return }
+        lastJudgments = judgments
+        let engine = self.engine
+        await engine.setReplyJudgments(judgments)
+        await Self.deliver(await engine.resolvedSnapshot(), to: self)
+    }
+    private var lastJudgments: [String: ReplyJudgment]?? = .none
 
     /// The summary to show for a thread, only while summaries are on.
     func summary(for thread: SessionThread) -> ThreadSummary? {
@@ -397,6 +416,7 @@ final class AppModel {
         Task { [weak self] in
             await service.apply(settings)
             await self?.refreshSummaries()
+            await self?.pushReplyJudgments()
             if turnedOn { self?.considerSummaries() }
         }
     }

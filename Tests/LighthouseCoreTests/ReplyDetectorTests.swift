@@ -35,6 +35,8 @@ import Testing
         "## Why does this happen?\nThe cache was stale; I cleared it and the build passes.",
         "Any config change the reviewer suggests waits for your approval.",
         "Not reviewed yet. Tell me if you want a review before you share it.\n\nContext unchanged: status only.",
+        "Released 0.0.7 and installed it on both Macs.\n\nExamples that now count: “Want me to push it?” and “I won't order it until you say go”.\n\nTo go back, run the installer with the old version.",
+        "The release is done and installed. If you want to try it, open the panel.",
         "Weekly row added.\n\n<oai-mem-citation>\n<citation_entries>\nx\n</citation_entries>\n</oai-mem-citation>",
         "",
     ])
@@ -95,6 +97,31 @@ import Testing
         #expect(scanner.mark([thread(path: path, state: .running, minutesAgo: 1, now: now)], now: now)[0].asksOwnerAt == nil)
         #expect(scanner.mark([thread(path: path, state: .stopped, minutesAgo: 49 * 60, now: now)], now: now)[0].asksOwnerAt == nil)
         #expect(scanner.mark([thread(path: path, state: .stopped, minutesAgo: 30, now: now)], now: now)[0].asksOwnerAt != nil)
+    }
+
+    /// With summaries on, only the model's judgment for the current activity counts (SPEC 2.10).
+    @Test func modelJudgmentReplacesTheWordingRules() {
+        let scratch = Scratch()
+        let now = Date()
+        let path = scratch.write("s.jsonl", line("assistant", "Want me to push it?") + "\n")
+        let t = thread(path: path, state: .idle, minutesAgo: 5, now: now)
+        var scanner = ReplyScanner()
+        // Model says no: not marked, even though the wording asks.
+        #expect(scanner.mark([t], now: now, judgments: [t.id: ReplyJudgment(activityAt: t.lastActivityAt, needsOwner: false)])[0].asksOwnerAt == nil)
+        // No judgment yet: not marked (no wording guess while the model is on).
+        #expect(scanner.mark([t], now: now, judgments: [:])[0].asksOwnerAt == nil)
+        // A judgment from before the latest activity does not count.
+        #expect(scanner.mark([t], now: now, judgments: [t.id: ReplyJudgment(activityAt: t.lastActivityAt.addingTimeInterval(-60), needsOwner: true)])[0].asksOwnerAt == nil)
+        // Model says yes for this activity: marked, whatever the wording.
+        let done = thread(path: scratch.write("d.jsonl", line("assistant", "Sign-in page is open.") + "\n"), state: .idle, minutesAgo: 5, now: now)
+        #expect(scanner.mark([done], now: now, judgments: [done.id: ReplyJudgment(activityAt: done.lastActivityAt, needsOwner: true)])[0].asksOwnerAt != nil)
+        // The owner wrote last: not marked, even when the model says yes.
+        let answered = thread(path: scratch.write("o.jsonl", [line("assistant", "Want me to push it?"), line("user", "yes")].joined(separator: "\n") + "\n"),
+                              state: .idle, minutesAgo: 5, now: now)
+        #expect(scanner.mark([answered], now: now, judgments: [answered.id: ReplyJudgment(activityAt: answered.lastActivityAt, needsOwner: true)])[0].asksOwnerAt == nil)
+        // Running threads are never marked.
+        let running = thread(path: path, state: .running, minutesAgo: 1, now: now)
+        #expect(scanner.mark([running], now: now, judgments: [running.id: ReplyJudgment(activityAt: running.lastActivityAt, needsOwner: true)])[0].asksOwnerAt == nil)
     }
 
     /// Codex transcripts count too.

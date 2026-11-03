@@ -13,9 +13,48 @@ import Testing
                          transcriptPaths: paths)
     }
 
-    static func summary(_ id: String = "claude:a", made: Date, activity: Date, hash: String = "h") -> ThreadSummary {
+    /// A current-format summary carries the "needs the owner" judgment (SPEC 2.10); pass nil for one
+    /// saved before it.
+    static func summary(_ id: String = "claude:a", made: Date, activity: Date, hash: String = "h", needsOwner: Bool? = false) -> ThreadSummary {
         ThreadSummary(threadId: id, line1: "Fixing contrast", line2: nil, madeAt: made, activityAt: activity, inputHash: hash,
-                      provider: .claude, model: SummarySettings.defaultClaudeModel)
+                      provider: .claude, model: SummarySettings.defaultClaudeModel, needsOwner: needsOwner)
+    }
+
+    /// SPEC 2.10: a finished thread whose summary predates the judgment is due once; a running one is not.
+    @Test func summaryWithoutJudgmentIsDueOnceWhenFinished() {
+        let activity = Self.t0
+        let old = Self.summary(made: activity.addingTimeInterval(5), activity: activity, needsOwner: nil)
+        #expect(SummaryRules.isDue(Self.candidate(state: .idle, activity: activity), last: old, failure: nil, now: activity.addingTimeInterval(120)))
+        #expect(!SummaryRules.isDue(Self.candidate(state: .running, activity: activity), last: old, failure: nil, now: activity.addingTimeInterval(120)))
+        let judged = Self.summary(made: activity.addingTimeInterval(130), activity: activity, needsOwner: false)
+        #expect(!SummaryRules.isDue(Self.candidate(state: .idle, activity: activity), last: judged, failure: nil, now: activity.addingTimeInterval(200)))
+    }
+
+    @Test func needsOwnerLineIsParsedAndKeptOutOfTheText() {
+        #expect(SummaryText.needsOwner(from: "Release built and installed\nNEEDS_OWNER: no") == false)
+        #expect(SummaryText.needsOwner(from: "Waiting for the API key\nAsked for the sandbox key\n**NEEDS_OWNER: yes**") == true)
+        #expect(SummaryText.needsOwner(from: "Release built and installed") == nil)
+        let lines = SummaryText.lines(from: "Waiting for the API key\nNEEDS_OWNER: yes")
+        #expect(lines?.0 == "Waiting for the API key")
+        #expect(lines?.1 == nil)
+        #expect(SummaryRequest.instructions.contains("NEEDS_OWNER: yes or NEEDS_OWNER: no"))
+    }
+
+    /// The judgment goes from the CLI answer into the store, and back.
+    @Test func judgmentIsStored() async throws {
+        let h = Harness()
+        let s = Scratch()
+        let path = s.write("claude/p/t.jsonl", Self.claudeTranscript(canary: "c"))
+        let launcher = FakeLauncher()
+        launcher.stdout = try JSONSerialization.data(withJSONObject: ["type": "result", "subtype": "success", "is_error": false,
+            "result": "Waiting for the sandbox key\nNEEDS_OWNER: yes"])
+        let service = h.service(transcripts: FileTranscriptSource(), launcher: launcher)
+        let report = await service.step([Self.candidate(state: .idle, activity: Self.t0.addingTimeInterval(-100), paths: [path])], now: Self.t0)
+        #expect(report?.outcome == .made)
+        let stored = h.store.loadSummaries()["claude:a"]!
+        #expect(stored.line1 == "Waiting for the sandbox key")
+        #expect(stored.needsOwner == true)
+        #expect(ReplyJudgment.from(h.store.loadSummaries())["claude:a"]?.needsOwner == true)
     }
 
     // MARK: Eligibility, trigger, debounce

@@ -4,6 +4,25 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.8 — 2026-11-03
+
+### Changed
+- **Needs you** is judged by what the run actually needs. With summaries on,
+  the summary model also answers whether the thread can go on without you:
+  a finished run, a report, or an optional offer ("install it if you like")
+  is not "needs you"; a question, a choice, an approval, or a task for you
+  (sign in, test, send a file) is. With summaries off, stricter wording rules
+  are used (last paragraph only; quoted examples ignored). A thread where you
+  wrote last never counts.
+- The menu bar shows a red ◆ and the count **before** the lighthouse when
+  something needs you; the panel no longer repeats it at the top. The yellow
+  tag stays on each row.
+
+### Tests
+- `SummaryTests.unchangedThreadIsNeverDue` now uses a current-format summary
+  (one with a judgment); summaries saved before 0.0.8 are judged once, covered
+  by `summaryWithoutJudgmentIsDueOnceWhenFinished`.
+
 ## 0.0.7 — 2026-11-03
 
 ### Added

@@ -8,7 +8,8 @@ struct AttentionStrip: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let counts = model.attentionCounts
+        // "Needs you" lives in the menu bar (red ◆ and count before the logo) and on each row's tag.
+        let counts = model.attentionCounts.filter { $0.key != .needsYou }
         if !counts.isEmpty || model.attentionFilter != nil {
             HStack(spacing: 6) {
                 Image(systemName: "diamond.fill").font(.system(size: 9)).foregroundStyle(.orange).accessibilityHidden(true)
@@ -23,7 +24,7 @@ struct AttentionStrip: View {
                             .underline(selected)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(bucket == .needsYou ? Color.red : Color.orange)
+                    .foregroundStyle(.orange)
                     .help("Filter")
                     .accessibilityLabel("\(bucket.title), \(counts[bucket] ?? 0)\(selected ? ", filter on" : "")")
                 }

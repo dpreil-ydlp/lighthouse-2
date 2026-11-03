@@ -44,7 +44,7 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
         "app_settings": ["key", "value"],
         // M8 (SPEC 2.9): summary text and its input hash only; never the request or conversation text.
         "summary_settings": ["key", "value"],
-        "summaries": ["thread_id", "line1", "line2", "made_at", "activity_at", "input_hash", "provider", "model"],
+        "summaries": ["thread_id", "line1", "line2", "made_at", "activity_at", "input_hash", "provider", "model", "needs_owner"],
         "summary_calls": ["at"],
     ]
 
@@ -100,6 +100,10 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
         if !ledgerColumns.contains("last_attempt_at") { try exec("ALTER TABLE notifications ADD COLUMN last_attempt_at REAL;") }
         // M9-E01: the identifier of the notification an attempt was claimed under.
         if !ledgerColumns.contains("notification_id") { try exec("ALTER TABLE notifications ADD COLUMN notification_id TEXT;") }
+        // SPEC 2.10: the model's yes/no on whether the thread waits for the owner (no text).
+        var summaryColumns = Set<String>()
+        try query("PRAGMA table_info(summaries)") { row in if let name = row.text(1) { summaryColumns.insert(name) } }
+        if !summaryColumns.contains("needs_owner") { try exec("ALTER TABLE summaries ADD COLUMN needs_owner INTEGER;") }
     }
 
     /// Live schema as table → columns, for the allowlist test.
@@ -339,23 +343,23 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
 
     public func loadSummaries() -> [String: ThreadSummary] {
         var result: [String: ThreadSummary] = [:]
-        try? query("SELECT thread_id, line1, line2, made_at, activity_at, input_hash, provider, model FROM summaries") { row in
+        try? query("SELECT thread_id, line1, line2, made_at, activity_at, input_hash, provider, model, needs_owner FROM summaries") { row in
             guard let id = row.text(0), let line1 = row.text(1), let made = row.date(3), let activity = row.date(4), let hash = row.text(5),
                   let provider = SummaryProvider(rawValue: row.text(6) ?? ""), let model = row.text(7) else { return }
             // Cleaned again on load, so summaries saved before a cleaning fix display correctly too.
             result[id] = ThreadSummary(threadId: id, line1: SummaryText.clean(Substring(line1)),
                                        line2: row.text(2).map { SummaryText.clean(Substring($0)) }.flatMap { $0.isEmpty ? nil : $0 }, madeAt: made, activityAt: activity, inputHash: hash,
-                                       provider: provider, model: model)
+                                       provider: provider, model: model, needsOwner: row.int(8).map { $0 == 1 })
         }
         return result
     }
 
     public func saveSummary(_ s: ThreadSummary) {
         try? run("""
-            INSERT OR REPLACE INTO summaries (thread_id, line1, line2, made_at, activity_at, input_hash, provider, model)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO summaries (thread_id, line1, line2, made_at, activity_at, input_hash, provider, model, needs_owner)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, [s.threadId, s.line1, s.line2, s.madeAt.timeIntervalSince1970, s.activityAt.timeIntervalSince1970, s.inputHash,
-                  s.provider.rawValue, s.model])
+                  s.provider.rawValue, s.model, s.needsOwner.map { $0 ? 1 : 0 }])
     }
 
     public func deleteSummaries() {
