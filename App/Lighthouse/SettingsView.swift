@@ -114,8 +114,38 @@ struct SourcesSettings: View {
             if let error = model.storeError {
                 Section("Store") { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
             }
+            NudgeSettings()
         }
         .formStyle(.grouped)
+    }
+}
+
+/// SPEC 2.11: the one switch that lets Lighthouse send anything into a thread.
+struct NudgeSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Section {
+            Toggle("Nudge stalled T3 Code threads", isOn: Binding(get: { model.appSettings.nudgeOn }, set: { model.setNudges($0) }))
+                .disabled(!model.nudgesAvailable || model.nudgeConnecting)
+            if model.nudgeConnecting {
+                LabeledContent("T3 Code", value: "Connecting…")
+            } else if model.appSettings.nudgeOn, model.nudgeStatus.connected {
+                LabeledContent("T3 Code", value: "Connected · \(model.nudgeStatus.access == "full-access" ? "Full access" : model.nudgeStatus.access ?? "unknown")")
+            }
+            if let error = model.nudgeStatus.lastError {
+                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            }
+            if !model.nudgesAvailable {
+                Text("Off in test mode.").foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Nudges")
+        } footer: {
+            Text("When a T3 Code thread has made no progress for 30 minutes, Lighthouse sends it a short message asking it to continue, up to \(NudgePolicy.limit) times, 15 minutes apart. If it is still stuck, the thread shows as Needs you. Subagents, Claude Code and Codex app threads are never nudged. Turning this on connects to T3 Code on this Mac with Full access.")
+                .foregroundStyle(.secondary)
+        }
+        .onAppear { model.refreshNudgeStatus() }
     }
 }
 

@@ -46,6 +46,8 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
         "summary_settings": ["key", "value"],
         "summaries": ["thread_id", "line1", "line2", "made_at", "activity_at", "input_hash", "provider", "model", "needs_owner"],
         "summary_calls": ["at"],
+        // 0.0.13 (SPEC 2.11): nudge counts per thread run; no message text, no token.
+        "nudges": ["thread_id", "episode_start", "count", "last_sent_at", "last_failed_at", "resting_since"],
     ]
 
     public init(url: URL = Store.defaultURL) throws {
@@ -81,6 +83,8 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
         CREATE TABLE IF NOT EXISTS summaries (thread_id TEXT PRIMARY KEY, line1 TEXT NOT NULL, line2 TEXT, made_at REAL NOT NULL,
             activity_at REAL NOT NULL, input_hash TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS summary_calls (at REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS nudges (thread_id TEXT PRIMARY KEY, episode_start REAL NOT NULL, count INTEGER NOT NULL,
+            last_sent_at REAL, last_failed_at REAL, resting_since REAL);
         """)
         try migrate()
     }
@@ -252,6 +256,28 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
 
     public func acknowledge(_ incident: String, at date: Date = Date()) throws {
         try run("INSERT OR REPLACE INTO acknowledgements (incident, acknowledged_at) VALUES (?, ?)", [incident, date.timeIntervalSince1970])
+    }
+
+    // MARK: Nudges (SPEC 2.11)
+
+    public func loadNudges() throws -> [String: NudgeRecord] {
+        var result: [String: NudgeRecord] = [:]
+        try query("SELECT thread_id, episode_start, count, last_sent_at, last_failed_at, resting_since FROM nudges") { row in
+            guard let id = row.text(0), let start = row.date(1) else { return }
+            result[id] = NudgeRecord(threadId: id, episodeStart: start, count: row.int(2) ?? 0, lastSentAt: row.date(3),
+                                     lastFailedAt: row.date(4), restingSince: row.date(5))
+        }
+        return result
+    }
+
+    public func saveNudge(_ record: NudgeRecord) throws {
+        try run("INSERT OR REPLACE INTO nudges (thread_id, episode_start, count, last_sent_at, last_failed_at, resting_since) VALUES (?, ?, ?, ?, ?, ?)",
+                [record.threadId, record.episodeStart.timeIntervalSince1970, record.count, record.lastSentAt?.timeIntervalSince1970,
+                 record.lastFailedAt?.timeIntervalSince1970, record.restingSince?.timeIntervalSince1970])
+    }
+
+    public func deleteNudge(_ threadId: String) throws {
+        try run("DELETE FROM nudges WHERE thread_id = ?", [threadId])
     }
 
     // MARK: Notification ledger (SPEC §8: one notification per incident identity, across restart)

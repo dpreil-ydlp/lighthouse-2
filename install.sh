@@ -10,7 +10,7 @@
 #   sh install.sh --help
 set -eu
 
-VERSION="${LIGHTHOUSE_VERSION:-0.0.12}"
+VERSION="${LIGHTHOUSE_VERSION:-0.0.13}"
 BUNDLE_ID="com.lighthouse.v2"
 APP_NAME="Lighthouse 2.app"
 OLD_APP_NAME="Lighthouse.app"

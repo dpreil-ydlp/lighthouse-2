@@ -79,9 +79,16 @@ public enum AttentionRules {
         }
         if let reference = stallReference(of: thread, now: now, observedSince: observedSince) {
             let entered = reference.addingTimeInterval(silenceAfter)
+            let nudged = thread.nudge.map { " · nudged \($0.count) of \(NudgePolicy.limit)" } ?? ""
             items.append(AttentionItem(id: "\(AttentionKind.stalledThread.rawValue)|\(thread.id)|\(Int(entered.timeIntervalSince1970))",
                                        kind: .stalledThread, threadId: thread.id, enteredAt: entered,
-                                       label: "No progress · \(thread.displayTitle)"))
+                                       label: "No progress\(nudged) · \(thread.displayTitle)"))
+            // SPEC 2.11: nudges did not help, so the owner is needed. One item per episode.
+            if let handed = NudgePolicy.exhaustedAt(stallOpen: true, mark: thread.nudge, now: now), let mark = thread.nudge {
+                items.append(AttentionItem(id: "\(AttentionKind.waitingForOwner.rawValue)|\(thread.id)|nudged-\(mark.episodeKey)",
+                                           kind: .waitingForOwner, threadId: thread.id, enteredAt: handed,
+                                           label: "Still stuck after \(NudgePolicy.limit) nudges · \(thread.displayTitle)"))
+            }
         }
         for sub in silentSubagents(of: thread, now: now, observedSince: observedSince) {
             let entered = sub.lastActivityAt.addingTimeInterval(silenceAfter)

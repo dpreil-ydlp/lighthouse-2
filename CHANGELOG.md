@@ -4,6 +4,30 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.13 — 2026-11-03
+
+### Added
+- **Nudge stalled T3 Code threads** (Settings › Sources, off by default). When a
+  T3 Code thread has made no progress for 30 minutes, Lighthouse sends it a
+  short fixed message asking it to continue or say what it needs. It sends up
+  to 3 nudges, 15 minutes apart. If the thread is still stuck 15 minutes after
+  the third, it shows as **Needs you** ("Still stuck after 3 nudges").
+- Only T3 Code parent threads are nudged. Subagents, Claude Code threads and
+  Codex app threads never are; they keep showing as gone quiet.
+- The count lasts 24 hours from the first nudge, or until the thread has sat
+  not running for 10 minutes. A nudge that starts a new run does not reset it.
+- Turning the switch on connects to T3 Code on this Mac with Full access, using
+  a one-time pairing code from T3's own `t3` command. The token stays in a
+  private file (`~/Library/Application Support/Lighthouse/t3/token.json`, mode
+  0600). Turning the switch off revokes it and deletes the file.
+
+### Changed
+- Lighthouse no longer only watches. With nudges on, it talks to T3 Code's
+  server on `127.0.0.1:3773`; it still listens on no port. The README's privacy
+  section lists what is sent.
+- Tests: the core guard test now lets one file, `T3Link.swift`, write and delete
+  its token file, exchange the pairing code, and reach `127.0.0.1:3773`.
+
 ## Installer and README — 2026-11-03
 
 The app is unchanged at 0.0.12; this updates `install.sh` and the docs on `main`.

@@ -183,6 +183,8 @@ public struct SessionThread: Sendable, Hashable, Identifiable, Codable {
     /// Set when the turn has ended and the agent's last message asks the owner for the next step
     /// (`ReplyDetector`, SPEC 2.10): that message's time. A yes/no result only; no text is kept.
     public var asksOwnerAt: Date?
+    /// Nudges Lighthouse sent in the current run (SPEC 2.11), set by the engine from the store.
+    public var nudge: NudgeMark?
 
     public init(
         id: String,

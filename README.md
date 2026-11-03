@@ -1,6 +1,6 @@
 # Lighthouse 2
 
-Version 0.0.12 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
+Version 0.0.13 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
 
 Lighthouse 2 is a menu bar app for people who run coding agents in Claude Code, Codex and T3 Code. Click the lighthouse in the menu bar, or press ⌃⌥Space, and one panel shows:
 
@@ -11,7 +11,7 @@ Lighthouse 2 is a menu bar app for people who run coding agents in Claude Code, 
 
 When something needs you, a red count appears next to the lighthouse in the menu bar.
 
-It only watches. It never starts, stops, resumes, messages or approves an agent, and it never stores message text.
+It watches, and it never stores message text. It never starts, stops or approves an agent. The one thing it can send is off until you turn it on: a short nudge to a T3 Code thread that has stalled (see Nudges below).
 
 <p>
   <img src="docs/images/panel-light.png" width="400" alt="The Lighthouse 2 panel in light mode: one line of usage per provider, trail-map tagged Needs you, and billing open to its two threads that need you">
@@ -28,14 +28,14 @@ All pictures use made-up projects from the app's test mode.
 curl -fsSL https://raw.githubusercontent.com/dpreil-ydlp/lighthouse-2/main/install.sh | sh
 ```
 
-The script downloads `Lighthouse-2-0.0.12.zip` from this repository's v0.0.12 release over HTTPS, checks it against the SHA-256 published with the release, installs `/Applications/Lighthouse 2.app` and opens it. Read [install.sh](install.sh) first if you like; it is short. If `/Applications/Lighthouse 2.app` already exists and is not Lighthouse 2, the script stops and changes nothing. If an older build sits at `/Applications/Lighthouse.app`, the script quits it and moves it to the Trash, so only one copy remains.
+The script downloads `Lighthouse-2-0.0.13.zip` from this repository's v0.0.13 release over HTTPS, checks it against the SHA-256 published with the release, installs `/Applications/Lighthouse 2.app` and opens it. Read [install.sh](install.sh) first if you like; it is short. If `/Applications/Lighthouse 2.app` already exists and is not Lighthouse 2, the script stops and changes nothing. If an older build sits at `/Applications/Lighthouse.app`, the script quits it and moves it to the Trash, so only one copy remains.
 
 Files downloaded with `curl` carry no quarantine flag, so macOS opens the app without the Gatekeeper warning described below.
 
 ### Download the app
 
-1. Download `Lighthouse-2-0.0.12.zip` from the [v0.0.12 release](https://github.com/dpreil-ydlp/lighthouse-2/releases/tag/v0.0.12).
-2. Optional: download `Lighthouse-2-0.0.12.zip.sha256` too and run `shasum -a 256 -c Lighthouse-2-0.0.12.zip.sha256` in the same folder.
+1. Download `Lighthouse-2-0.0.13.zip` from the [v0.0.13 release](https://github.com/dpreil-ydlp/lighthouse-2/releases/tag/v0.0.13).
+2. Optional: download `Lighthouse-2-0.0.13.zip.sha256` too and run `shasum -a 256 -c Lighthouse-2-0.0.13.zip.sha256` in the same folder.
 3. Double-click the zip and drag `Lighthouse 2.app` to Applications.
 4. Open it. The first time, macOS blocks it, because the app is signed ad-hoc and not notarized by Apple (there is no paid Developer ID behind this release). You see "“Lighthouse 2” Not Opened" with **Move to Trash** and **Done**. Click **Done**.
 5. Open System Settings › Privacy & Security, scroll to Security, and click **Open Anyway** next to the line about Lighthouse 2. macOS may ask for your password. It remembers the choice.
@@ -66,6 +66,10 @@ How a thread is judged depends on thread summaries (see Privacy). With summaries
 
 <img src="docs/images/usage-pace.png" width="400" alt="The Claude usage page: session 30 % left and 10 % in deficit, runs out in 1 h 17 m; week 83 % left; projects with local activity this window">
 
+**Nudges.** Turn on **Nudge stalled T3 Code threads** in Settings › Sources. When a T3 Code thread has made no progress for 30 minutes, Lighthouse 2 sends it this message: "Lighthouse (nudge 1 of 3): this thread has shown no progress for 30 minutes. Please continue the task. If you are blocked or need something from me, say what you need." It sends up to 3 nudges, 15 minutes apart. If the thread is still stuck 15 minutes after the third, it shows as **Needs you** ("Still stuck after 3 nudges") and counts in the menu bar. The count lasts 24 hours from the first nudge, or until the thread has sat not running for 10 minutes.
+
+Only T3 Code parent threads are nudged, because T3 can take a message for one exact thread. Subagents, Claude Code threads and Codex app threads are never messaged; they keep showing as gone quiet. Turning nudges on connects Lighthouse 2 to T3 Code on your Mac (see Privacy).
+
 **Projects, threads and subagents.** Active projects sit at the top, then the ones completed recently (24 hours by default). Quiet projects stay hidden unless you turn them on in Settings › General. Point at a project row to get a one-line button, such as **T3 Code ↗**, that opens the app of the thread named on the row. A project opens to its threads; a thread opens to its state, last activity, local token count and subagents, with the button that opens it in its own app.
 
 <img src="docs/images/project-threads.png" width="400" alt="The recipe-box project page: the thread Recipe card layout expanded, running, with one test-runner subagent and an Open Claude app button">
@@ -93,9 +97,12 @@ It writes only its own files:
 
 - `~/Library/Application Support/Lighthouse/lighthouse.sqlite`: the metadata above, your pins and settings, and, with summaries on, each summary line, its needs-you yes/no and a hash of the request that made it,
 - `~/Library/Caches/com.lighthouse.v2/summary-scratch`: an empty folder the summary command runs in (summaries on only),
-- `~/Library/Preferences/com.lighthouse.v2.plist`: the Settings window position.
+- `~/Library/Preferences/com.lighthouse.v2.plist`: the Settings window position,
+- `~/Library/Application Support/Lighthouse/t3/token.json` (nudges on only): the T3 Code token, mode 0600 in a folder only you can open.
 
-**Network.** With usage turned on, Lighthouse 2 sends one HTTPS request every 2 minutes per provider, to `api.anthropic.com/api/oauth/usage` (Claude) or `chatgpt.com/backend-api/wham/usage` (Codex), with your existing sign-in token. It keeps tokens in memory only, never refreshes them, and never writes them to its store or log. It opens no listening port. With usage off and summaries off, it sends nothing.
+**Network.** With usage turned on, Lighthouse 2 sends one HTTPS request every 2 minutes per provider, to `api.anthropic.com/api/oauth/usage` (Claude) or `chatgpt.com/backend-api/wham/usage` (Codex), with your existing sign-in token. It keeps tokens in memory only, never refreshes them, and never writes them to its store or log. It opens no listening port. With usage, summaries and nudges off, it sends nothing.
+
+**Nudges connect to T3 Code, on your Mac only.** Turning nudges on runs T3's own `t3 auth pairing create` for a one-time pairing code, then follows T3's sign-in flow for MCP clients at `http://127.0.0.1:3773` and gets a token with Full access (T3 refuses messages to threads with more access than the token, and new T3 threads start on Full access). Each nudge is one `t3_thread_send` call to that server, carrying only the fixed message above. Nothing else is read or sent through it, and nothing leaves your Mac. T3 issues tokens for about 30 days with no refresh, so Lighthouse 2 gets a new one a few days before it expires. Turning nudges off revokes the T3 session and deletes the token file. Lighthouse 2 stores nudge counts and times per thread, never message text.
 
 **Thread summaries are opt-in and send text.** If you turn them on in Settings › Summaries, Lighthouse 2 runs the `claude` or `codex` command-line tool you already have, signed in to your own subscription, to write a one-line summary of each active thread. Each request carries the thread's title, project name, state and the last 24 KB of user and assistant text. Tool calls, tool output and file contents are left out, and known secret patterns (API keys, tokens, private keys, `password=…`) are replaced with `[redacted]` before sending. That text goes to Anthropic or OpenAI, whichever you picked. The default models are `claude-haiku-5-5` and `gpt-6-luna`; at most 30 calls per hour by default. The same call also answers whether the thread needs you. Only the summary, that yes/no and a hash of the request are stored. The Codex CLI also sends your global `~/.codex/AGENTS.md`; codex-cli 0.165.0 has no switch to leave it out. Turning summaries Off stops all reading and sending.
 
@@ -113,7 +120,7 @@ curl -fsSL https://raw.githubusercontent.com/dpreil-ydlp/lighthouse-2/main/insta
 
 That quits Lighthouse 2 and moves `/Applications/Lighthouse 2.app` to the Trash. It touches nothing else. By hand:
 
-1. If you turned on "Open Lighthouse at login", turn it off in Settings › General.
+1. If you turned on "Open Lighthouse at login", turn it off in Settings › General. If you turned on nudges, turn them off in Settings › Sources, so the T3 session is revoked.
 2. Quit: open the panel and press ⌘Q.
 3. Move `/Applications/Lighthouse 2.app` to the Trash.
 4. To delete its data too: `rm -r ~/Library/Application\ Support/Lighthouse ~/Library/Caches/com.lighthouse.v2` and `defaults delete com.lighthouse.v2`.
@@ -127,7 +134,7 @@ You need Xcode with Swift 6 on Apple silicon.
 git clone https://github.com/dpreil-ydlp/lighthouse-2.git
 cd lighthouse-2
 swift test            # core and app-logic tests
-scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.12.zip and its .sha256
+scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.13.zip and its .sha256
 ```
 
 `scripts/package.sh` builds with SwiftPM, so it works without opening Xcode. It strips the binary (symbols go to `dist/Lighthouse.app.dSYM`), signs ad-hoc and writes a zip that holds only `Lighthouse 2.app`. Set `SIGN_IDENTITY` to sign with your own certificate. `App/Lighthouse.xcodeproj`, generated from `App/project.yml` with XcodeGen, builds the same app in Xcode.

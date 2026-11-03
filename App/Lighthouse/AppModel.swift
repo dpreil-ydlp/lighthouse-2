@@ -115,6 +115,14 @@ final class AppModel {
     private var summaryService: SummaryService!
     private var summaryTask: Task<Void, Never>?
 
+    // Nudges (SPEC 2.11): off until the owner turns them on. Never in test mode: test mode reads
+    // fixture threads, and their ids must never reach the owner's real T3 server.
+    private(set) var nudgeStatus = T3Link.Status(connected: false)
+    private(set) var nudgeConnecting = false
+    private var nudgeRecords: [String: NudgeRecord] = [:]
+    private var nudgeTask: Task<Void, Never>?
+    private var t3Link: T3Link?
+
     /// The app's one model, for receipt captures (`ReceiptSnapshot`).
     private(set) static weak var current: AppModel?
 
@@ -177,6 +185,12 @@ final class AppModel {
         let notifier = self.notifier
         dispatcher = NotificationDispatcher(store: store, send: { planned in await notifier.submit(planned) },
                                             alreadyShown: { await notifier.shownIdentifiers() })
+        if !testMode {
+            t3Link = T3Link()
+            nudgeRecords = (try? store?.loadNudges()) ?? [:]
+        } else if appSettings.nudgeOn {
+            log.notice("nudges off in test mode")
+        }
         applyLaunchArguments()
         notifier.onOpen = { [weak self] root, provider in self?.openFromNotification(project: root, provider: provider) }
         Task { [weak self] in await self?.checkNotificationPermission() }
@@ -256,6 +270,7 @@ final class AppModel {
         let engine = self.engine
         let summaryService: SummaryService = self.summaryService
         let summariesOn = summarySettings.isOn
+        let nudgesAtStart = nudgesShown
         // Indexing runs at utility QoS so the panel stays responsive while it reads (SPEC §3.2).
         // M1-01: build the panel window invisibly at launch. Prefer to do it right after the last
         // known shelf is published, so the first full render of the rows also happens inside the
@@ -269,6 +284,7 @@ final class AppModel {
         Task(priority: .utility) { [weak self] in
             // Before the first observed pass, so no wording guess runs while the model judges (SPEC 2.10).
             await engine.setReplyJudgments(summariesOn ? ReplyJudgment.from(await summaryService.all()) : nil)
+            await engine.setNudges(nudgesAtStart)
             let started = Date()
             let first = await engine.indexToCompletion(progressInterval: 5) { [weak self] snapshot in
                 await Self.deliver(snapshot, to: self)
@@ -340,8 +356,110 @@ final class AppModel {
         if snapshot.checkedAt != nil {
             evaluateNotifications()
             considerSummaries()
+            considerNudges()
         }
     }
+
+    // MARK: Nudges (SPEC 2.11)
+
+    /// Records the engine marks threads with: none while nudges are off.
+    private var nudgesShown: [String: NudgeRecord] { appSettings.nudgeOn && t3Link != nil ? nudgeRecords : [:] }
+
+    /// One step after each published pass: send the next due nudge, one at a time.
+    func considerNudges() {
+        guard appSettings.nudgeOn, nudgeTask == nil, let link = t3Link else { return }
+        let now = Date()
+        // End episodes whose thread finished or went away, before choosing the next nudge.
+        let reconciled = NudgePolicy.reconcile(nudgeRecords, threads: liveShelf.all.flatMap(\.threads), now: now)
+        if !reconciled.changed.isEmpty || !reconciled.removed.isEmpty {
+            nudgeRecords = reconciled.records
+            for record in reconciled.changed { try? store?.saveNudge(record) }
+            for id in reconciled.removed { try? store?.deleteNudge(id) }
+            let engine = self.engine, shown = nudgesShown
+            Task { await engine.setNudges(shown) }
+        }
+        guard let candidate = NudgePolicy.next(liveShelf.all, records: nudgeRecords, now: now) else { return }
+        let previous = nudgeRecords[candidate.threadId]
+        let attempt = NudgePolicy.attempted(candidate, at: now)
+        nudgeRecords[candidate.threadId] = attempt
+        try? store?.saveNudge(attempt)
+        log.notice("nudge send thread=\(candidate.threadId, privacy: .public) number=\(candidate.number, privacy: .public)")
+        nudgeTask = Task { [weak self] in
+            let result = await link.send(threadId: candidate.t3ThreadId, message: NudgePolicy.message(number: candidate.number),
+                                         requestId: NudgePolicy.requestId(threadId: candidate.t3ThreadId, episodeKey: candidate.episodeKey, number: candidate.number))
+            let status = await link.status()
+            await MainActor.run { self?.finishNudge(candidate, previous: previous, result: result, status: status) }
+        }
+    }
+
+    private func finishNudge(_ candidate: NudgeCandidate, previous: NudgeRecord?, result: T3Link.SendResult, status: T3Link.Status) {
+        nudgeStatus = status
+        switch result {
+        case .sent:
+            log.notice("nudge sent thread=\(candidate.threadId, privacy: .public) number=\(candidate.number, privacy: .public)")
+        case .failed(let why):
+            let record = NudgePolicy.failed(candidate, previous: previous, at: Date())
+            nudgeRecords[candidate.threadId] = record
+            try? store?.saveNudge(record)
+            log.notice("nudge failed thread=\(candidate.threadId, privacy: .public) number=\(candidate.number, privacy: .public) reason=\(why, privacy: .public)")
+        }
+        nudgeTask = nil
+        let engine = self.engine
+        let shown = nudgesShown
+        Task { [weak self] in
+            await engine.setNudges(shown)
+            await Self.deliver(await engine.resolvedSnapshot(), to: self)
+        }
+    }
+
+    /// Turning nudges on connects to T3 Code first; if that fails, the switch stays off and the
+    /// reason shows in Settings. Turning them off revokes the T3 session and deletes the token.
+    func setNudges(_ on: Bool) {
+        guard let link = t3Link, !nudgeConnecting else { return }
+        if !on {
+            appSettings.nudgeOn = false
+            saveAppSettings()
+            log.notice("nudges off")
+            Task { [weak self] in
+                await link.disconnect()
+                let status = await link.status()
+                await MainActor.run { self?.nudgeStatus = status }
+                await self?.pushNudges()
+            }
+            return
+        }
+        nudgeConnecting = true
+        Task { [weak self] in
+            let ok = (try? await link.connect()) != nil
+            let status = await link.status()
+            await MainActor.run {
+                guard let self else { return }
+                self.nudgeConnecting = false
+                self.nudgeStatus = status
+                self.appSettings.nudgeOn = ok
+                self.saveAppSettings()
+                log.notice("nudges on=\(ok, privacy: .public) access=\(status.access ?? "none", privacy: .public)")
+            }
+            await self?.pushNudges()
+            await MainActor.run { self?.considerNudges() }
+        }
+    }
+
+    func refreshNudgeStatus() {
+        guard let link = t3Link else { return }
+        Task { [weak self] in
+            let status = await link.status()
+            await MainActor.run { self?.nudgeStatus = status }
+        }
+    }
+
+    private func pushNudges() async {
+        let engine = self.engine
+        await engine.setNudges(nudgesShown)
+        await Self.deliver(await engine.resolvedSnapshot(), to: self)
+    }
+
+    var nudgesAvailable: Bool { t3Link != nil }
 
     // MARK: Summaries (M8)
 

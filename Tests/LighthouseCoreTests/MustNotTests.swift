@@ -151,8 +151,15 @@ import Testing
         var urls: [String] = []
         for name in try FileManager.default.contentsOfDirectory(atPath: root.path) where name.hasSuffix(".swift") {
             let text = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
-            for word in forbidden { #expect(!text.contains(word), "\(name) uses \(word)") }
-            if name != "UsageLive.swift" { for word in networkOnly { #expect(!text.contains(word), "\(name) uses \(word)") } }
+            // SPEC 2.11: T3Link alone may write and delete its token file and exchange a T3 pairing
+            // code for a token; every other forbidden word stays forbidden there too.
+            let t3LinkAllowed: Set<String> = ["write(to", "removeItem", "grant_type"]
+            // "removeItem" contains "moveItem"; T3Link is checked for moveItem without it.
+            let checked = name == "T3Link.swift" ? text.replacingOccurrences(of: "removeItem", with: "") : text
+            for word in forbidden where !(name == "T3Link.swift" && t3LinkAllowed.contains(word)) {
+                #expect(!checked.contains(word), "\(name) uses \(word)")
+            }
+            if name != "UsageLive.swift" && name != "T3Link.swift" { for word in networkOnly { #expect(!text.contains(word), "\(name) uses \(word)") } }
             for line in text.split(separator: "\n") where line.contains("://") && !line.trimmingCharacters(in: .whitespaces).hasPrefix("///") {
                 var rest = Substring(line)
                 while let range = rest.range(of: "https://") ?? rest.range(of: "http://") {
@@ -164,7 +171,9 @@ import Testing
                 }
             }
         }
-        #expect(Set(urls) == ["https://api.anthropic.com/api/oauth/usage", "https://chatgpt.com/backend-api/wham/usage"], "\(urls)")
+        // The T3 server on this Mac (SPEC 2.11) and the redirect address T3 is told about (nothing listens there).
+        #expect(Set(urls) == ["https://api.anthropic.com/api/oauth/usage", "https://chatgpt.com/backend-api/wham/usage",
+                              "http://127.0.0.1:3773", "http://127.0.0.1:51829/t3-callback"], "\(urls)")
         #expect(UsageEndpoints.allowed.map(\.absoluteString).sorted() == ["https://api.anthropic.com/api/oauth/usage", "https://chatgpt.com/backend-api/wham/usage"])
     }
 }

@@ -45,6 +45,8 @@ public struct AppSettings: Sendable, Hashable {
     public var showQuiet = false
     /// Usage block shows one line per provider (default); the USAGE header toggles the detail view.
     public var usageCompact = true
+    /// SPEC 2.11: send up to 3 nudges into a stalled T3 Code parent thread. Off by default.
+    public var nudgeOn = false
 
     public init() {}
 
@@ -62,12 +64,13 @@ public struct AppSettings: Sendable, Hashable {
         showQuiet = values["shelf.showQuiet"] == 1
         // Stored as "usage.detailed" so a value saved by 0.0.5 (when detail was the default) is ignored.
         usageCompact = values["usage.detailed"] != 1
+        nudgeOn = values["nudge.on"] == 1
     }
 
     var values: [String: Int] {
         var result = ["notify.on": notificationsOn ? 1 : 0, "notify.paused": alertsPaused ? 1 : 0, "onboarded": onboarded ? 1 : 0,
                       "hotkey": hotkey.rawValue, "shelf.recentHours": recentlyCompletedHours, "shelf.showQuiet": showQuiet ? 1 : 0,
-                      "usage.detailed": usageCompact ? 0 : 1]
+                      "usage.detailed": usageCompact ? 0 : 1, "nudge.on": nudgeOn ? 1 : 0]
         for category in NotificationCategory.allCases { result["notify.\(category.rawValue)"] = categories.contains(category) ? 1 : 0 }
         return result
     }

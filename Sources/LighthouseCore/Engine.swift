@@ -163,6 +163,10 @@ public actor Engine {
 
     public func setReplyJudgments(_ judgments: [String: ReplyJudgment]?) { replyJudgments = judgments }
 
+    /// Nudge records by thread id (SPEC 2.11); empty while nudges are off.
+    private var nudges: [String: NudgeRecord] = [:]
+    public func setNudges(_ records: [String: NudgeRecord]) { nudges = records }
+
     /// Resolution results are cached; the cache is rebuilt when bindings or T3 projects change, or every 60 s.
     /// `observe` is false for the restored launch shelf, which is not an observation: nothing in it
     /// has been observed yet, so it raises no stall or silence (M9 R1: at relaunch it was built before
@@ -171,6 +175,13 @@ public actor Engine {
         var threads = if let t3Index, let t3ReadAt { ThreadMerge.merge(jsonl: jsonl, index: t3Index, readAt: t3ReadAt, now: now) } else { jsonl }
         // The restored launch shelf reads no source file, so it raises no reply wait either.
         if observe { threads = replies.mark(threads, now: now, judgments: replyJudgments) }
+        if !nudges.isEmpty {
+            for index in threads.indices {
+                if let record = NudgePolicy.current(nudges[threads[index].id], now: now), record.count > 0 {
+                    threads[index].nudge = NudgeMark(count: record.count, lastSentAt: record.lastSentAt, episodeKey: record.episodeKey)
+                }
+            }
+        }
         let unobserved: ObservedSince = { _ in now }
         let observedSince = observe ? observation.observe(threads, now: now) : unobserved
         let bindings = (try? store?.loadBindings()) ?? []
