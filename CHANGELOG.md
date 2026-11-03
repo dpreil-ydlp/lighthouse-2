@@ -4,6 +4,22 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.7 — 2026-11-03
+
+### Added
+- **Needs you** now also covers agents that finish by asking you something
+  ("Want me to push it?", "won't start until you say go") without raising an
+  approval or input request. Lighthouse reads the end of the last agent message
+  on your Mac with fixed wording rules; nothing is sent and no text is saved.
+  It clears when you reply.
+
+### Changed
+- Search is a magnifier until you click it (or press ⌘F, or start typing);
+  then the field slides open. Esc, or clicking away with nothing typed, folds it
+  back.
+- The gear closes the panel and opens Settings in front.
+- The attention count is red, in the menu bar and in the panel.
+
 ## 0.0.6 — 2026-11-03
 
 ### Fixed

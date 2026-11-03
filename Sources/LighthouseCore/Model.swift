@@ -177,8 +177,12 @@ public struct SessionThread: Sendable, Hashable, Identifiable, Codable {
     /// younger than `AttentionRules.busyCap` the thread is busy, not stalled.
     public var busySince: Date?
     /// JSONL files that back this thread (its own session, or its aliases' for a T3 thread), newest
-    /// activity first. Paths only; read solely by the opt-in summary tail reader (SPEC 2.9 §4, M8).
+    /// activity first. Paths only; read by the opt-in summary tail reader (SPEC 2.9 §4, M8) and, for the
+    /// last agent message of a finished turn, by `ReplyScanner` (SPEC 2.10).
     public var transcriptPaths: [String] = []
+    /// Set when the turn has ended and the agent's last message asks the owner for the next step
+    /// (`ReplyDetector`, SPEC 2.10): that message's time. A yes/no result only; no text is kept.
+    public var asksOwnerAt: Date?
 
     public init(
         id: String,

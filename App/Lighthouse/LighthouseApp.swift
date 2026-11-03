@@ -49,7 +49,7 @@ struct MenuBarGlyph: View {
     var body: some View {
         HStack(spacing: 2) {
             Image(nsImage: LighthouseGlyph.image(nearLimit: usage.nearLimit, filled: attention > 0))
-            if attention > 0 { Text("\(attention)").monospacedDigit() }
+            if attention > 0 { Image(nsImage: LighthouseGlyph.count(attention)) }
             if showPercent, let left = usage.worstLeft {
                 Text("\(Int(left.rounded()))% left").monospacedDigit()
             }
@@ -79,6 +79,25 @@ enum LighthouseGlyph {
     static let filledTemplate: NSImage = make(arc: nil, filled: true)
     static let filledAmber: NSImage = make(arc: .systemOrange, filled: true)
     static let filledRed: NSImage = make(arc: .systemRed, filled: true)
+
+    /// The attention count in red (owner request): drawn as a non-template image, since menu bar
+    /// text is always tinted to the bar's color.
+    @MainActor static func count(_ value: Int) -> NSImage {
+        if let cached = counts[value] { return cached }
+        let text = NSAttributedString(string: value > 99 ? "99+" : "\(value)", attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .bold),
+            .foregroundColor: NSColor.systemRed,
+        ])
+        let size = text.size()
+        let image = NSImage(size: NSSize(width: ceil(size.width), height: 18), flipped: false) { _ in
+            text.draw(at: NSPoint(x: 0, y: (18 - size.height) / 2))
+            return true
+        }
+        image.isTemplate = false
+        counts[value] = image
+        return image
+    }
+    @MainActor private static var counts: [Int: NSImage] = [:]
 
     static func image(nearLimit: NearLimit, filled: Bool = false) -> NSImage {
         switch nearLimit {

@@ -23,7 +23,7 @@ struct AttentionStrip: View {
                             .underline(selected)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(bucket == .needsYou ? Color.red : Color.orange)
                     .help("Filter")
                     .accessibilityLabel("\(bucket.title), \(counts[bucket] ?? 0)\(selected ? ", filter on" : "")")
                 }

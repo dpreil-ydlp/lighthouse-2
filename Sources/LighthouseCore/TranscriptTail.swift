@@ -53,9 +53,9 @@ public enum TranscriptTail {
     }
 
     /// User and assistant text messages from the last `readBudget` bytes of one file, in file order.
-    public static func messages(path: String, access: SourceAccess) -> [Message] {
+    public static func messages(path: String, access: SourceAccess, budget: Int = readBudget) -> [Message] {
         guard let stat = access.stat(path), !stat.isDirectory, !stat.isSymlink, stat.size > 0 else { return [] }
-        let start = stat.size > UInt64(readBudget) ? stat.size - UInt64(readBudget) : 0
+        let start = stat.size > UInt64(budget) ? stat.size - UInt64(budget) : 0
         guard let data = access.read(path, offset: start, count: Int(stat.size - start)) else { return [] }
         var lines = data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: true)
         // A read that starts mid-file begins inside a line; drop that fragment.

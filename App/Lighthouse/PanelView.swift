@@ -48,36 +48,24 @@ struct PanelView: View {
         // Keys (SPEC §9) arrive through `AppModel.handleKey` (a local monitor on this window).
     }
 
-    /// Title, the always-visible search field, and Settings. Typing anywhere on the home page still
-    /// starts a search (keys go to `AppModel.handleKey`), and ⌘F focuses the field.
+    /// Title, search and Settings. Search is a magnifier until clicked (or ⌘F, or typing on the
+    /// shelf); then the field slides open from the right. Esc, or leaving it empty, folds it back.
     private var header: some View {
-        @Bindable var model = model
-        return HStack(spacing: 10) {
+        HStack(spacing: 10) {
             Text(AppIdentity.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary).fixedSize()
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.tertiary).font(.system(size: 11))
-                TextField("Search projects and threads", text: $model.searchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .focused($searchFocused)
-                    .onChange(of: model.searchText) { _, text in
-                        model.searchFocus = nil
-                        if !text.isEmpty && !model.searchVisible { model.searchVisible = true }
-                    }
-                    .accessibilityLabel("Search projects and threads")
-                if !model.searchText.isEmpty {
-                    Button { model.escape() } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).foregroundStyle(.tertiary).font(.system(size: 11))
-                        .help("Clear search (Esc)").accessibilityLabel("Clear search")
-                }
+            Spacer(minLength: 0)
+            if model.searchVisible {
+                searchField
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                            removal: .move(edge: .trailing).combined(with: .opacity)))
+            } else {
+                Button { model.openSearch("") } label: { Image(systemName: "magnifyingglass") }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help("Search projects and threads (⌘F)")
+                    .accessibilityLabel("Search")
+                    .transition(.opacity)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-            .help("Search projects and threads (⌘F)")
-            .onChange(of: searchFocused) { _, focused in if focused { model.searchVisible = true } }
-            .onChange(of: model.searchVisible) { _, visible in if !visible { searchFocused = false } }
-            .onChange(of: model.searchFocusRequest) { _, _ in focusSearch() }
             SettingsButton { Image(systemName: "gearshape") }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
@@ -85,9 +73,39 @@ struct PanelView: View {
                 .help("Settings (⌘,)")
                 .accessibilityLabel("Settings")
         }
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.searchVisible)
         .padding(.horizontal, Metrics.inset)
         .frame(height: 32)
         .padding(.top, 6)
+        .clipped()
+    }
+
+    private var searchField: some View {
+        @Bindable var model = model
+        return HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.tertiary).font(.system(size: 11))
+            TextField("Search projects and threads", text: $model.searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($searchFocused)
+                .onChange(of: model.searchText) { _, _ in model.searchFocus = nil }
+                .accessibilityLabel("Search projects and threads")
+            if !model.searchText.isEmpty {
+                Button { model.escape() } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.plain).foregroundStyle(.tertiary).font(.system(size: 11))
+                    .help("Clear search (Esc)").accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        .frame(maxWidth: 260)
+        .onAppear { focusSearch() }
+        .onChange(of: model.searchFocusRequest) { _, _ in focusSearch() }
+        // Clicking elsewhere with nothing typed folds the field back to the magnifier.
+        .onChange(of: searchFocused) { _, focused in
+            if !focused && model.searchText.isEmpty && model.searchVisible { model.escape() }
+        }
     }
 
     /// Focus the field with the caret after any typed character (focus alone selects all text,

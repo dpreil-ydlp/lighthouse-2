@@ -64,6 +64,13 @@ public enum AttentionRules {
                                        threadId: thread.id, enteredAt: request.createdAt ?? thread.lastActivityAt,
                                        label: "\(request.label) · \(thread.displayTitle)"))
         }
+        // The turn ended on a question or request for the owner (SPEC 2.10). The id carries the message
+        // time, so a new hand-off after an acknowledged one raises a new item.
+        if thread.pendingRequest == nil, let asked = thread.asksOwnerAt {
+            items.append(AttentionItem(id: "\(AttentionKind.waitingForOwner.rawValue)|\(thread.id)|reply-\(Int(asked.timeIntervalSince1970))",
+                                       kind: .waitingForOwner, threadId: thread.id, enteredAt: asked,
+                                       label: "Reply needed · \(thread.displayTitle)"))
+        }
         for sub in thread.subagents where sub.state == .waitingForOwner {
             guard let request = sub.pendingRequest else { continue }
             items.append(AttentionItem(id: "\(AttentionKind.waitingForOwner.rawValue)|\(sub.id)|\(request.id)", kind: .waitingForOwner,

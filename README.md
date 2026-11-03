@@ -1,6 +1,6 @@
 # Lighthouse 2
 
-Version 0.0.6 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
+Version 0.0.7 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
 
 Lighthouse 2 is a menu bar app for people who run coding agents in Claude Code, Codex and T3 Code. Click the lighthouse in the menu bar, or press ⌃⌥Space, and one panel shows:
 
@@ -26,14 +26,14 @@ All pictures use made-up projects from the app's test mode.
 curl -fsSL https://raw.githubusercontent.com/dpreil-ydlp/lighthouse-2/main/install.sh | sh
 ```
 
-The script downloads `Lighthouse-2-0.0.6.zip` from this repository's v0.0.6 release over HTTPS, checks it against the SHA-256 published with the release, installs `/Applications/Lighthouse 2.app` and opens it. Read [install.sh](install.sh) first if you like; it is short. If `/Applications/Lighthouse 2.app` already exists and is not Lighthouse 2, the script stops and changes nothing. If an older build sits at `/Applications/Lighthouse.app`, the script quits it and moves it to the Trash, so only one copy remains.
+The script downloads `Lighthouse-2-0.0.7.zip` from this repository's v0.0.7 release over HTTPS, checks it against the SHA-256 published with the release, installs `/Applications/Lighthouse 2.app` and opens it. Read [install.sh](install.sh) first if you like; it is short. If `/Applications/Lighthouse 2.app` already exists and is not Lighthouse 2, the script stops and changes nothing. If an older build sits at `/Applications/Lighthouse.app`, the script quits it and moves it to the Trash, so only one copy remains.
 
 Files downloaded with `curl` carry no quarantine flag, so macOS opens the app without the Gatekeeper warning described below.
 
 ### Download the app
 
-1. Download `Lighthouse-2-0.0.6.zip` from the [v0.0.6 release](https://github.com/dpreil-ydlp/lighthouse-2/releases/tag/v0.0.6).
-2. Optional: download `Lighthouse-2-0.0.6.zip.sha256` too and run `shasum -a 256 -c Lighthouse-2-0.0.6.zip.sha256` in the same folder.
+1. Download `Lighthouse-2-0.0.7.zip` from the [v0.0.7 release](https://github.com/dpreil-ydlp/lighthouse-2/releases/tag/v0.0.7).
+2. Optional: download `Lighthouse-2-0.0.7.zip.sha256` too and run `shasum -a 256 -c Lighthouse-2-0.0.7.zip.sha256` in the same folder.
 3. Double-click the zip and drag `Lighthouse 2.app` to Applications.
 4. Open it. The first time, macOS blocks it, because the app is signed ad-hoc and not notarized by Apple (there is no paid Developer ID behind this release). You see "“Lighthouse 2” Not Opened" with **Move to Trash** and **Done**. Click **Done**.
 5. Open System Settings › Privacy & Security, scroll to Security, and click **Open Anyway** next to the line about Lighthouse 2. macOS may ask for your password. It remembers the choice.
@@ -117,7 +117,7 @@ You need Xcode with Swift 6 on Apple silicon.
 git clone https://github.com/dpreil-ydlp/lighthouse-2.git
 cd lighthouse-2
 swift test            # core and app-logic tests
-scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.6.zip and its .sha256
+scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.7.zip and its .sha256
 ```
 
 `scripts/package.sh` builds with SwiftPM, so it works without opening Xcode. It strips the binary (symbols go to `dist/Lighthouse.app.dSYM`), signs ad-hoc and writes a zip that holds only `Lighthouse 2.app`. Set `SIGN_IDENTITY` to sign with your own certificate. `App/Lighthouse.xcodeproj`, generated from `App/project.yml` with XcodeGen, builds the same app in Xcode.

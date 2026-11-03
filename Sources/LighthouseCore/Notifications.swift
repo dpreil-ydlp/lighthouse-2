@@ -12,7 +12,7 @@ public enum NotificationCategory: String, Sendable, Hashable, CaseIterable, Coda
 
     public var title: String {
         switch self {
-        case .waiting: "Waiting for you (approval or input)"
+        case .waiting: "Waiting for you (approval, input or a reply)"
         case .silent: "Subagent silent"
         case .stalled: "Thread stalled"
         case .usage: "Usage crosses 80 % and 95 %"

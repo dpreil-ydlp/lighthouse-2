@@ -156,13 +156,17 @@ public actor Engine {
     private var resolverT3: [String: String] = [:]
     /// Gap-free observation per subject, for stall and silence timing (SPEC §5.4, M4).
     private var observation = ObservationTracker()
+    /// "Waiting on you" from the last agent message of finished threads (SPEC 2.10).
+    private var replies = ReplyScanner()
 
     /// Resolution results are cached; the cache is rebuilt when bindings or T3 projects change, or every 60 s.
     /// `observe` is false for the restored launch shelf, which is not an observation: nothing in it
     /// has been observed yet, so it raises no stall or silence (M9 R1: at relaunch it was built before
     /// any T3 read, so a T3 thread's alias looked like a stalled Codex thread and was notified).
     func snapshot(threads jsonl: [SessionThread], statuses: [CollectorStatus], now: Date, indexing: Bool, observe: Bool = true) -> Snapshot {
-        let threads = if let t3Index, let t3ReadAt { ThreadMerge.merge(jsonl: jsonl, index: t3Index, readAt: t3ReadAt, now: now) } else { jsonl }
+        var threads = if let t3Index, let t3ReadAt { ThreadMerge.merge(jsonl: jsonl, index: t3Index, readAt: t3ReadAt, now: now) } else { jsonl }
+        // The restored launch shelf reads no source file, so it raises no reply wait either.
+        if observe { threads = replies.mark(threads, now: now) }
         let unobserved: ObservedSince = { _ in now }
         let observedSince = observe ? observation.observe(threads, now: now) : unobserved
         let bindings = (try? store?.loadBindings()) ?? []

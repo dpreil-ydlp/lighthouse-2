@@ -16,8 +16,8 @@ extension View {
     }
 }
 
-/// Opens Settings in front. `SettingsLink` alone opened the window behind the frontmost app: a menu
-/// bar (accessory) app is not brought forward, so the click looked like it did nothing.
+/// Closes the panel and opens Settings in front. `SettingsLink` alone opened the window behind the
+/// frontmost app (a menu bar app is not brought forward), and the open panel covered it.
 struct SettingsButton<Label: View>: View {
     @Environment(\.openSettings) private var openSettings
     @ViewBuilder let label: () -> Label
@@ -30,6 +30,7 @@ struct SettingsButton<Label: View>: View {
 @MainActor
 enum SettingsWindow {
     static func open(_ openSettings: OpenSettingsAction) {
+        PanelControl.close()
         NSApp.activate(ignoringOtherApps: true)
         openSettings()
         // The window exists only after this run loop turn.

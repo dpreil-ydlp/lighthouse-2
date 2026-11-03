@@ -599,7 +599,8 @@ public struct ProjectHeadline: Sendable, Hashable {
     public static func make(for project: ProjectSummary, recentlyCompleted: Bool = false,
                             summary: (SessionThread) -> ThreadSummary?) -> ProjectHeadline? {
         guard recentlyCompleted || [.needsYou, .working, .recent].contains(project.status) else { return nil }
-        let waiting = project.status == .needsYou ? project.threads.first { $0.state == .waitingForOwner } : nil
+        let waiting = project.status == .needsYou
+            ? project.threads.first { $0.state == .waitingForOwner } ?? project.threads.first { $0.asksOwnerAt != nil } : nil
         guard let thread = waiting ?? project.threads.first else { return nil }
         let names = [project.identity.name, thread.displayTitle]
         if let s = summary(thread), !s.line1.isEmpty {
