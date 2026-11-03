@@ -4,6 +4,19 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.11 — 2026-11-03
+
+### Fixed
+- The red count next to the lighthouse now shows in the menu bar. The menu bar
+  shows only one image, and the count was a second image, so macOS dropped it
+  (0.0.7–0.0.10). The logo and the count are now one image.
+
+### Changed
+- The menu bar icon only says whether something needs you: the lighthouse,
+  plus the count in red when a thread waits for you. Usage arcs, the dimmed
+  "stale" look and the filled "gone quiet" logo are gone (gone quiet still shows
+  in the panel). The optional "% left" text stays a Settings choice, off by default.
+
 ## 0.0.10 — 2026-11-03
 
 ### Changed

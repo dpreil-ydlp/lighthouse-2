@@ -79,14 +79,11 @@ enum ReceiptSnapshot {
 
     /// The production menu bar glyph in each §6.1 state (synthetic states, for the visual check only).
     @MainActor private static func renderGlyphs(dark: Bool) -> Bool {
+        let usage = UsageGlyphState(nearLimit: .none, worstPercent: 41, worstDescription: nil, allStale: false)
         let states: [(String, MenuBarGlyph)] = [
-            ("rest", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .none, worstPercent: 41, worstDescription: nil, allStale: false), showPercent: false)),
-            ("≤ 20% left", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .amber, worstPercent: 88, worstDescription: nil, allStale: false), showPercent: false)),
-            ("≤ 5% left", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .red, worstPercent: 97, worstDescription: nil, allStale: false), showPercent: false)),
-            ("+ least left", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .amber, worstPercent: 88, worstDescription: nil, allStale: false), showPercent: true)),
-            ("stale", MenuBarGlyph(stale: true, sourcesStale: false, usage: UsageGlyphState(nearLimit: .none, worstPercent: nil, worstDescription: nil, allStale: true), showPercent: false)),
-            ("needs you 2", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .none, worstPercent: 41, worstDescription: nil, allStale: false), showPercent: false, needsYou: 2)),
-            ("gone quiet 1", MenuBarGlyph(stale: false, sourcesStale: false, usage: UsageGlyphState(nearLimit: .none, worstPercent: 41, worstDescription: nil, allStale: false), showPercent: false, goneQuiet: 1)),
+            ("nothing waiting", MenuBarGlyph(usage: usage, showPercent: false)),
+            ("needs you 3", MenuBarGlyph(usage: usage, showPercent: false, needsYou: 3)),
+            ("needs you 12", MenuBarGlyph(usage: usage, showPercent: false, needsYou: 12)),
         ]
         let strip = HStack(spacing: 18) {
             ForEach(states, id: \.0) { label, glyph in

@@ -226,20 +226,12 @@ final class AppModel {
     var hasProjects: Bool { !liveShelf.all.isEmpty }
     func project(_ root: String) -> ProjectSummary? { liveShelf.all.first { $0.identity.root == root } }
 
-    /// Stale glyph: all sources, or all enabled usage, unconfirmed for more than 10 min (SPEC §6.1).
-    var glyphStale: Bool { allSourcesStale || glyph.allStale }
-
     /// Readings of enabled providers, in provider order.
     func usage(for provider: Provider) -> ProviderUsage? { usage.first { $0.provider == provider } }
 
     /// Local tokens of `provider` this window, per project (SPEC §5.5, §6.3).
     func attribution(for provider: Provider) -> LocalTokenAttribution {
         LocalTokenAttribution(provider: provider, usage: usage(for: provider), projects: liveShelf.all, statuses: snapshot.statuses, now: now)
-    }
-
-    var allSourcesStale: Bool {
-        guard !snapshot.statuses.isEmpty else { return false }
-        return snapshot.statuses.allSatisfy { now.timeIntervalSince($0.lastReadAt) > 600 }
     }
 
     var coverageNote: String? {
