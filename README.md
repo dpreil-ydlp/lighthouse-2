@@ -111,6 +111,7 @@ It writes only its own files:
 - A Mac with Apple silicon. The release is arm64 only.
 - macOS 14 or later. This release ran on macOS 26.5 (MacBook Air) and was built and tested on 26.6. Versions 14 to 26.4 have not been tried.
 - Claude Code, Codex (CLI or the ChatGPT app) or T3 Code, for something to watch.
+- For nudges: T3 Code running on the same Mac, with its `t3` command at `~/.t3/bin/t3` (T3 installs it there). Tested with T3 Code 0.1.6: a real stalled thread got its 3 nudges 15 minutes apart, then showed as Needs you.
 
 ## Uninstall
 
