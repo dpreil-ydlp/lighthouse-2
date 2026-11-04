@@ -59,6 +59,19 @@ public struct SystemProcessLauncher: SummaryProcessLauncher {
         }
     }
 
+    /// Starts a process that outlives the app (the update install script, SPEC 2.12): no pipes, no
+    /// wait. True when it started.
+    public static func launchDetached(executable: String, arguments: [String]) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return false }
+        return true
+    }
+
     private final class Box: @unchecked Sendable {
         let lock = NSLock()
         var stdout = Data()

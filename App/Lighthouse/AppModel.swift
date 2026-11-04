@@ -123,6 +123,9 @@ final class AppModel {
     private var nudgeTask: Task<Void, Never>?
     private var t3Link: T3Link?
 
+    /// Update checks and install (SPEC 2.12).
+    private(set) var updates: UpdateController!
+
     /// The app's one model, for receipt captures (`ReceiptSnapshot`).
     private(set) static weak var current: AppModel?
 
@@ -191,6 +194,8 @@ final class AppModel {
         } else if appSettings.nudgeOn {
             log.notice("nudges off in test mode")
         }
+        updates = UpdateController(storeFolder: storeURL.deletingLastPathComponent(),
+                                   testFeed: TestHooks.updateFeed(arguments: CommandLine.arguments), auto: appSettings.updatesAuto)
         applyLaunchArguments()
         notifier.onOpen = { [weak self] root, provider in self?.openFromNotification(project: root, provider: provider) }
         Task { [weak self] in await self?.checkNotificationPermission() }
@@ -638,6 +643,16 @@ final class AppModel {
         saveAppSettings()
     }
 
+    func setUpdatesAuto(_ on: Bool) {
+        appSettings.updatesAuto = on
+        saveAppSettings()
+        updates.setAuto(on)
+    }
+
+    func installUpdate() {
+        updates.install { [weak self] message in self?.show(message) }
+    }
+
     func finishOnboarding() {
         appSettings.onboarded = true
         saveAppSettings()
@@ -788,6 +803,7 @@ final class AppModel {
             guard !warmup, !session.isOpen else { return }
             session.show(live: liveShelf, warmup: false)
             log.notice("panel shown")
+            updates.panelOpened()
             let height = panelContentHeight
             DispatchQueue.main.async { PanelControl.fit(contentHeight: height) }
             ReceiptSnapshot.captureSoon(model: self)

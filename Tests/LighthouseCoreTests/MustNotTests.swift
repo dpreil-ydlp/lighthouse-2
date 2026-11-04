@@ -153,13 +153,18 @@ import Testing
             let text = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
             // SPEC 2.11: T3Link alone may write and delete its token file and exchange a T3 pairing
             // code for a token; every other forbidden word stays forbidden there too.
-            let t3LinkAllowed: Set<String> = ["write(to", "removeItem", "grant_type"]
-            // "removeItem" contains "moveItem"; T3Link is checked for moveItem without it.
-            let checked = name == "T3Link.swift" ? text.replacingOccurrences(of: "removeItem", with: "") : text
-            for word in forbidden where !(name == "T3Link.swift" && t3LinkAllowed.contains(word)) {
+            // SPEC 2.12: Updates alone may write the downloaded zip and empty its own updates folder.
+            let allowed: Set<String> = switch name {
+            case "T3Link.swift": ["write(to", "removeItem", "grant_type"]
+            case "Updates.swift": ["write(to", "removeItem"]
+            default: []
+            }
+            // "removeItem" contains "moveItem"; these files are checked for moveItem without it.
+            let checked = allowed.contains("removeItem") ? text.replacingOccurrences(of: "removeItem", with: "") : text
+            for word in forbidden where !allowed.contains(word) {
                 #expect(!checked.contains(word), "\(name) uses \(word)")
             }
-            if name != "UsageLive.swift" && name != "T3Link.swift" { for word in networkOnly { #expect(!text.contains(word), "\(name) uses \(word)") } }
+            if !["UsageLive.swift", "T3Link.swift", "Updates.swift"].contains(name) { for word in networkOnly { #expect(!text.contains(word), "\(name) uses \(word)") } }
             for line in text.split(separator: "\n") where line.contains("://") && !line.trimmingCharacters(in: .whitespaces).hasPrefix("///") {
                 var rest = Substring(line)
                 while let range = rest.range(of: "https://") ?? rest.range(of: "http://") {
@@ -172,8 +177,11 @@ import Testing
             }
         }
         // The T3 server on this Mac (SPEC 2.11) and the redirect address T3 is told about (nothing listens there).
+        // SPEC 2.12: the public release list and this repository's release downloads.
         #expect(Set(urls) == ["https://api.anthropic.com/api/oauth/usage", "https://chatgpt.com/backend-api/wham/usage",
-                              "http://127.0.0.1:3773", "http://127.0.0.1:51829/t3-callback"], "\(urls)")
+                              "http://127.0.0.1:3773", "http://127.0.0.1:51829/t3-callback",
+                              "https://api.github.com/repos/dpreil-ydlp/lighthouse-2/releases?per_page=20",
+                              "https://github.com/dpreil-ydlp/lighthouse-2/releases/download/"], "\(urls)")
         #expect(UsageEndpoints.allowed.map(\.absoluteString).sorted() == ["https://api.anthropic.com/api/oauth/usage", "https://chatgpt.com/backend-api/wham/usage"])
     }
 }

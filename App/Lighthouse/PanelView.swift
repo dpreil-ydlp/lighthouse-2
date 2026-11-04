@@ -54,6 +54,7 @@ struct PanelView: View {
         HStack(spacing: 10) {
             Text(AppIdentity.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary).fixedSize()
             Spacer(minLength: 0)
+            if !model.searchVisible { UpdateButton() }
             if model.searchVisible {
                 searchField
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),

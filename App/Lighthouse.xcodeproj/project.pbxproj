@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1D3B3FF0B6C21962C0E8C699 /* ThreadViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E41EF0141CE39937A718F9 /* ThreadViews.swift */; };
 		20A329EBFD8D6DAA6B8FF4F3 /* SystemServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5627A98105FA521204427F4 /* SystemServices.swift */; };
+		A1B2C3D4E5F60718293A4B01 /* UpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B02 /* UpdateViews.swift */; };
 		47FD221C1E2713FF7D0B3EAE /* AttentionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB1CE304F638CD8EE2B75A9 /* AttentionViews.swift */; };
 		49624AFE36B486844DCEE35D /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1FACC820CB3D0A4D5F4251 /* PanelView.swift */; };
 		496BEE12E72EDB47F669C617 /* DirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A29D20F3CB7CE8F999862C /* DirectoryWatcher.swift */; };
@@ -44,6 +45,7 @@
 		C8E234DAFD0774F6A5A69E10 /* PanelWarmup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelWarmup.swift; sourceTree = "<group>"; };
 		D787E7F2E0E6A9F9641E45B8 /* UsageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageViews.swift; sourceTree = "<group>"; };
 		E5627A98105FA521204427F4 /* SystemServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemServices.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B02 /* UpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +94,7 @@
 				39BD0152CA024D1AB7387CDE /* ShelfView.swift */,
 				2F999176E0909370E048FF35 /* SnapshotFolder.swift */,
 				E5627A98105FA521204427F4 /* SystemServices.swift */,
+				A1B2C3D4E5F60718293A4B02 /* UpdateViews.swift */,
 				C2E41EF0141CE39937A718F9 /* ThreadViews.swift */,
 				D787E7F2E0E6A9F9641E45B8 /* UsageViews.swift */,
 			);
@@ -194,6 +197,7 @@
 				9A629D59DB6218320682B827 /* ShelfView.swift in Sources */,
 				F002AF7D48A2F592C0EDC2EF /* SnapshotFolder.swift in Sources */,
 				20A329EBFD8D6DAA6B8FF4F3 /* SystemServices.swift in Sources */,
+				A1B2C3D4E5F60718293A4B01 /* UpdateViews.swift in Sources */,
 				1D3B3FF0B6C21962C0E8C699 /* ThreadViews.swift in Sources */,
 				70412A021C83CBFBCDD5D5F1 /* UsageViews.swift in Sources */,
 			);

@@ -15,6 +15,25 @@ enum ReceiptSnapshot {
             capture()
             render(model: model)
             if CommandLine.arguments.contains("-LighthouseSnapshotSummarySettings") { captureSummarySettings(model: model) }
+            if let offer = model.updates.offer { captureUpdateNotes(offer) }
+        }
+    }
+
+    /// The Update button's hover notes (SPEC 2.12) in their own window, as the popover shows them.
+    /// Snapshot mode only; the window closes after the capture.
+    @MainActor private static func captureUpdateNotes(_ offer: UpdateOffer) {
+        guard let name else { return }
+        let host = NSHostingView(rootView: UpdateNotesView(offer: offer))
+        let size = host.fittingSize
+        let window = NSWindow(contentRect: NSRect(x: 80, y: 80, width: size.width, height: size.height), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = host
+        window.appearance = NSApp.appearance
+        window.backgroundColor = .windowBackgroundColor
+        window.isReleasedWhenClosed = false
+        window.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            write(window, file: "\(name)-update-notes.png")
+            window.orderOut(nil)
         }
     }
 

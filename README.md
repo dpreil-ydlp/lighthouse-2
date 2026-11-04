@@ -1,6 +1,6 @@
 # Lighthouse 2
 
-Version 0.0.13 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
+Version 0.0.14 · macOS 14 or later · Apple silicon · [MIT License](LICENSE)
 
 Lighthouse 2 is a menu bar app for people who run coding agents in Claude Code, Codex and T3 Code. Click the lighthouse in the menu bar, or press ⌃⌥Space, and one panel shows:
 
@@ -28,14 +28,14 @@ All pictures use made-up projects from the app's test mode.
 curl -fsSL https://raw.githubusercontent.com/dpreil-ydlp/lighthouse-2/main/install.sh | sh
 ```
 
-The script downloads `Lighthouse-2-0.0.13.zip` from this repository's v0.0.13 release over HTTPS, checks it against the SHA-256 published with the release, installs `/Applications/Lighthouse 2.app` and opens it. Read [install.sh](install.sh) first if you like; it is short. If `/Applications/Lighthouse 2.app` already exists and is not Lighthouse 2, the script stops and changes nothing. If an older build sits at `/Applications/Lighthouse.app`, the script quits it and moves it to the Trash, so only one copy remains.
+The script downloads `Lighthouse-2-0.0.14.zip` from this repository's v0.0.14 release over HTTPS, checks it against the SHA-256 published with the release, installs `/Applications/Lighthouse 2.app` and opens it. Read [install.sh](install.sh) first if you like; it is short. If `/Applications/Lighthouse 2.app` already exists and is not Lighthouse 2, the script stops and changes nothing. If an older build sits at `/Applications/Lighthouse.app`, the script quits it and moves it to the Trash, so only one copy remains.
 
 Files downloaded with `curl` carry no quarantine flag, so macOS opens the app without the Gatekeeper warning described below.
 
 ### Download the app
 
-1. Download `Lighthouse-2-0.0.13.zip` from the [v0.0.13 release](https://github.com/dpreil-ydlp/lighthouse-2/releases/tag/v0.0.13).
-2. Optional: download `Lighthouse-2-0.0.13.zip.sha256` too and run `shasum -a 256 -c Lighthouse-2-0.0.13.zip.sha256` in the same folder.
+1. Download `Lighthouse-2-0.0.14.zip` from the [v0.0.14 release](https://github.com/dpreil-ydlp/lighthouse-2/releases/tag/v0.0.14).
+2. Optional: download `Lighthouse-2-0.0.14.zip.sha256` too and run `shasum -a 256 -c Lighthouse-2-0.0.14.zip.sha256` in the same folder.
 3. Double-click the zip and drag `Lighthouse 2.app` to Applications.
 4. Open it. The first time, macOS blocks it, because the app is signed ad-hoc and not notarized by Apple (there is no paid Developer ID behind this release). You see "“Lighthouse 2” Not Opened" with **Move to Trash** and **Done**. Click **Done**.
 5. Open System Settings › Privacy & Security, scroll to Security, and click **Open Anyway** next to the line about Lighthouse 2. macOS may ask for your password. It remembers the choice.
@@ -74,6 +74,8 @@ Only T3 Code parent threads are nudged, because T3 can take a message for one ex
 
 <img src="docs/images/project-threads.png" width="400" alt="The recipe-box project page: the thread Recipe card layout expanded, running, with one test-runner subagent and an Open Claude app button">
 
+**Updates.** From 0.0.14, Lighthouse 2 updates itself. When a newer release is out, an **Update** button appears at the top of the panel. Point at it to see what changes in every release between your copy and the newest. Click it to update: Lighthouse 2 downloads the new zip from this repository's releases, checks its SHA-256 against the published `.sha256`, checks that the app inside is Lighthouse 2 at that version, then quits, replaces itself and opens again. If any step fails, your copy stays as it was. It checks at launch and every 6 hours; Settings › General › Updates has **Check now** and a switch for the automatic checks.
+
 **Settings.** Panes for General, Sources, Usage, Open-in, Notifications, Summaries and Projects. Summaries are off until you pick a provider.
 
 <img src="docs/images/settings-summaries.png" width="520" alt="Settings, Summaries pane: Off, Claude or ChatGPT, a cap of 30 calls per hour, and what is sent (nothing while Off)">
@@ -98,9 +100,12 @@ It writes only its own files:
 - `~/Library/Application Support/Lighthouse/lighthouse.sqlite`: the metadata above, your pins and settings, and, with summaries on, each summary line, its needs-you yes/no and a hash of the request that made it,
 - `~/Library/Caches/com.lighthouse.v2/summary-scratch`: an empty folder the summary command runs in (summaries on only),
 - `~/Library/Preferences/com.lighthouse.v2.plist`: the Settings window position,
+- `~/Library/Application Support/Lighthouse/updates` (only while an update is being installed) and `update.log` next to it: what the last update did,
 - `~/Library/Application Support/Lighthouse/t3/token.json` (nudges on only): the T3 Code token, mode 0600 in a folder only you can open.
 
-**Network.** With usage turned on, Lighthouse 2 sends one HTTPS request every 2 minutes per provider, to `api.anthropic.com/api/oauth/usage` (Claude) or `chatgpt.com/backend-api/wham/usage` (Codex), with your existing sign-in token. It keeps tokens in memory only, never refreshes them, and never writes them to its store or log. It opens no listening port. With usage, summaries and nudges off, it sends nothing.
+**Network.** With usage turned on, Lighthouse 2 sends one HTTPS request every 2 minutes per provider, to `api.anthropic.com/api/oauth/usage` (Claude) or `chatgpt.com/backend-api/wham/usage` (Codex), with your existing sign-in token. It keeps tokens in memory only, never refreshes them, and never writes them to its store or log. It opens no listening port.
+
+**Update checks.** At launch, every 6 hours and when you click **Check now**, Lighthouse 2 asks `api.github.com` for this repository's public release list. Only when you click **Update** does it download that release's zip and `.sha256` from `github.com` (GitHub redirects the download to `*.githubusercontent.com`). No token, cookie or identifier is sent. Turn the automatic checks off in Settings › General › Updates. With usage, summaries, nudges and automatic update checks off, it sends nothing.
 
 **Nudges connect to T3 Code, on your Mac only.** Turning nudges on runs T3's own `t3 auth pairing create` for a one-time pairing code, then follows T3's sign-in flow for MCP clients at `http://127.0.0.1:3773` and gets a token with Full access (T3 refuses messages to threads with more access than the token, and new T3 threads start on Full access). Each nudge is one `t3_thread_send` call to that server, carrying only the fixed message above. Nothing else is read or sent through it, and nothing leaves your Mac. T3 issues tokens for about 30 days with no refresh, so Lighthouse 2 gets a new one a few days before it expires. Turning nudges off revokes the T3 session and deletes the token file. Lighthouse 2 stores nudge counts and times per thread, never message text.
 
@@ -135,7 +140,7 @@ You need Xcode with Swift 6 on Apple silicon.
 git clone https://github.com/dpreil-ydlp/lighthouse-2.git
 cd lighthouse-2
 swift test            # core and app-logic tests
-scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.13.zip and its .sha256
+scripts/package.sh    # Release build: dist/Lighthouse-2-0.0.14.zip and its .sha256
 ```
 
 `scripts/package.sh` builds with SwiftPM, so it works without opening Xcode. It strips the binary (symbols go to `dist/Lighthouse.app.dSYM`), signs ad-hoc and writes a zip that holds only `Lighthouse 2.app`. Set `SIGN_IDENTITY` to sign with your own certificate. `App/Lighthouse.xcodeproj`, generated from `App/project.yml` with XcodeGen, builds the same app in Xcode.

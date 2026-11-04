@@ -4,6 +4,23 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.14 — 2026-11-04
+
+### Added
+- **Update button.** When a newer release exists on GitHub, an **Update**
+  button appears at the top of the panel. Hovering it lists what changes in
+  every release between your copy and the newest. One click downloads the
+  newest zip, checks its SHA-256 against the published `.sha256`, checks that
+  it is Lighthouse 2 at that version, then quits, swaps the app and opens the
+  new copy. If any step fails, the installed copy is left as it was.
+- Settings › General › Updates: automatic checks (at launch and every 6 hours,
+  on by default), status, **Check now**.
+
+### Changed
+- Lighthouse now also talks to GitHub: `api.github.com` for the release list,
+  and `github.com` release downloads when you click Update. The README's
+  privacy section lists it.
+
 ## 0.0.13 — 2026-11-03
 
 ### Added

@@ -99,6 +99,20 @@ extension TestHooks {
     }
 }
 
+extension TestHooks {
+    public static let updateFeedFlag = "-LighthouseTestUpdateFeed"
+
+    /// A local release list (a JSON file in the GitHub format) for update checks (SPEC 2.12), from
+    /// the argument list only, and only in complete test mode. Its assets may be `file://` URLs.
+    /// Nil otherwise: a normal launch always reads the real release list.
+    public static func updateFeed(arguments: [String], realStore: URL = Store.defaultURL) -> URL? {
+        guard case .test = parse(arguments: arguments, realStore: realStore),
+              let index = arguments.firstIndex(of: updateFeedFlag), index + 1 < arguments.count,
+              arguments[index + 1].hasPrefix("/") else { return nil }
+        return URL(fileURLWithPath: arguments[index + 1])
+    }
+}
+
 /// Fixture readings relative to `now` (M6 contract C1 cases a and b, plus a session window).
 public enum UsageFixtures {
     public static func named(_ name: String, now: Date) -> [ProviderUsage]? {
