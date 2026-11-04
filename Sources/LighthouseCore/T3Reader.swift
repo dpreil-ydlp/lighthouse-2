@@ -20,6 +20,9 @@ public struct T3State: Sendable, Hashable {
         public var worktreePath: String?
         /// `lineage.parentThreadId` when `lineage.relationshipToParent` is `subagent`.
         public var lineageParent: String?
+        /// `settledAt` while `settledOverride` is `settled` (the owner settled the thread in T3, SPEC 2.14).
+        /// Nil when not settled, unsettled again, or the payload is not valid JSON.
+        public var settledAt: Date? = nil
     }
 
     /// Provider-thread mapping: T3 thread → native session id (`nativeThreadRef.nativeId`).
@@ -143,6 +146,12 @@ public struct T3Reader: Sendable {
     static let turnItemsTable = "orchestration_v2_projection_turn_items"
     static let turnItemsColumns = ["thread_id", "run_id", "type", "status", "updated_at", "payload_json"]
 
+    /// T3's settle mark on a thread row (SPEC 2.14): its time while `settledOverride` is `settled`.
+    static let settledColumn = """
+        CASE WHEN json_valid(payload_json) AND json_extract(payload_json, '$.settledOverride') = 'settled'
+            THEN json_extract(payload_json, '$.settledAt') END
+        """
+
     /// Every statement the reader runs, in order. Exposed so tests can assert no text column is selected.
     /// The last one reads in-flight tool calls; its WHERE matches T3's partial index
     /// `…_turn_items_recovery_idx` exactly, so it scans only in-flight items, never the whole table.
@@ -152,7 +161,8 @@ public struct T3Reader: Sendable {
         SELECT thread_id, project_id, title, created_at, archived_at,
           CASE WHEN json_valid(payload_json) THEN json_extract(payload_json, '$.worktreePath') END,
           CASE WHEN json_valid(payload_json) AND json_extract(payload_json, '$.lineage.relationshipToParent') = 'subagent'
-            THEN json_extract(payload_json, '$.lineage.parentThreadId') END
+            THEN json_extract(payload_json, '$.lineage.parentThreadId') END,
+          \(settledColumn)
         FROM orchestration_v2_projection_threads WHERE deleted_at IS NULL
         """,
         """
@@ -218,7 +228,7 @@ public struct T3Reader: Sendable {
                 guard let id = r.text(0), let project = r.text(1) else { return }
                 state.threads.append(.init(id: id, projectId: project, title: r.text(2) ?? "", createdAt: Timestamps.parse(r.text(3)),
                                            archived: r.text(4) != nil, worktreePath: r.text(5).flatMap { $0.isEmpty ? nil : $0 },
-                                           lineageParent: r.text(6)))
+                                           lineageParent: r.text(6), settledAt: Timestamps.parse(r.text(7))))
             }
             try connection.rows(Self.queries[2]) { r in
                 guard let thread = r.text(0), let native = r.text(2), !native.isEmpty,
@@ -264,13 +274,15 @@ public struct T3Reader: Sendable {
         public var archived: Bool?
         public var run: T3State.Run?
         public var pending: [T3State.Request]
+        /// The thread row's settle mark, as in the full read (SPEC 2.14).
+        public var settledAt: Date? = nil
     }
 
     /// The statements of a targeted read, one id bound each. Each uses an index on `thread_id`
     /// (primary key for threads; the runs `(thread_id, ordinal)` index; the requests' thread index),
     /// so the cost depends on the number of counted threads, not on the size of the database.
     static let subjectQueries: [String] = [
-        "SELECT archived_at FROM orchestration_v2_projection_threads WHERE thread_id = ?1 AND deleted_at IS NULL",
+        "SELECT archived_at, \(settledColumn) FROM orchestration_v2_projection_threads WHERE thread_id = ?1 AND deleted_at IS NULL",
         """
         SELECT status, requested_at, completed_at,
           (SELECT MAX(done.completed_at) FROM orchestration_v2_projection_runs done WHERE done.thread_id = ?1)
@@ -289,7 +301,10 @@ public struct T3Reader: Sendable {
             defer { statements.forEach { sqlite3_finalize($0) } }
             for id in ids {
                 var subject = Subject(archived: nil, run: nil, pending: [])
-                try connection.rows(statements[0], bind: id) { r in subject.archived = r.text(0) != nil }
+                try connection.rows(statements[0], bind: id) { r in
+                    subject.archived = r.text(0) != nil
+                    subject.settledAt = Timestamps.parse(r.text(1))
+                }
                 if subject.archived != nil {
                     try connection.rows(statements[1], bind: id) { r in
                         guard let status = r.text(0) else { return }

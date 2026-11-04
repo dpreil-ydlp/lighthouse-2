@@ -33,6 +33,14 @@ public enum NudgePolicy {
         return record
     }
 
+    /// As `current`, and settling the thread in T3 ends the episode (SPEC 2.14): an episode that
+    /// began at or before `settledAt` is over, so it sends no further nudge and marks nothing.
+    public static func current(_ record: NudgeRecord?, settledAt: Date?, now: Date) -> NudgeRecord? {
+        guard let record = current(record, now: now) else { return nil }
+        if let settledAt, record.episodeStart <= settledAt { return nil }
+        return record
+    }
+
     /// True when a nudge should go out now: the stall is open, the episode has had fewer than `limit`
     /// nudges, and the last nudge (or failed try) is at least `spacing` old.
     public static func isDue(_ thread: SessionThread, stallOpen: Bool, record: NudgeRecord?, now: Date) -> Bool {
@@ -71,7 +79,7 @@ public enum NudgePolicy {
         let byId = Dictionary(threads.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var kept: [String: NudgeRecord] = [:], changed: [NudgeRecord] = [], removed: [String] = []
         for (id, record) in records {
-            guard current(record, now: now) != nil, let thread = byId[id] else { removed.append(id); continue }
+            guard let thread = byId[id], current(record, settledAt: thread.settledAt, now: now) != nil else { removed.append(id); continue }
             var next = record
             if thread.state == .running {
                 next.restingSince = nil
@@ -145,9 +153,10 @@ extension NudgePolicy {
             let stalled = Dictionary(project.attentionItems.filter { $0.kind == .stalledThread && $0.subagentId == nil }.map { ($0.threadId, $0.enteredAt) },
                                      uniquingKeysWith: min)
             for thread in project.threads {
+                // An episode from before a settle is over (SPEC 2.14); a later stall starts a new one.
+                let open = current(records[thread.id], settledAt: thread.settledAt, now: now)
                 guard let since = stalled[thread.id], let target = target(thread),
-                      isDue(thread, stallOpen: true, record: records[thread.id], now: now) else { continue }
-                let open = current(records[thread.id], now: now)
+                      isDue(thread, stallOpen: true, record: open, now: now) else { continue }
                 let candidate = NudgeCandidate(threadId: thread.id, t3ThreadId: target, episodeStart: open?.episodeStart ?? now,
                                                number: (open?.count ?? 0) + 1, title: thread.displayTitle)
                 if best == nil || since < best!.since { best = (candidate, since) }

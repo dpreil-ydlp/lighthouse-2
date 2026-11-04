@@ -167,6 +167,11 @@ public actor T3Collector {
                 state.threads[position].archived = archived
                 changed = true
             }
+            // Settling a counted thread in T3 clears its items as fast as a resolve (SPEC 2.14).
+            if let position, state.threads[position].settledAt != subject.settledAt {
+                state.threads[position].settledAt = subject.settledAt
+                changed = true
+            }
             if state.runs[id] != subject.run {
                 state.runs[id] = subject.run
                 changed = true

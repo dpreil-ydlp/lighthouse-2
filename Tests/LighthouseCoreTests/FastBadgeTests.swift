@@ -327,9 +327,17 @@ import Testing
 
     @Test func targetedQueriesSelectNoTextColumns() {
         for query in T3Reader.subjectQueries {
-            for column in ["payload_json", "text", "prompt", "result", "question"] {
+            for column in ["text", "prompt", "result", "question"] {
                 #expect(!query.contains(column), "\(column) in \(query)")
             }
+            // SPEC 2.14: payload_json is only parsed for the settle mark, never returned (the same
+            // rule as the full read's `readerSelectsNoTextColumns`).
+            let selected = query.components(separatedBy: "payload_json").count - 1
+            let parsed = query.components(separatedBy: "json_extract(payload_json").count - 1
+                + query.components(separatedBy: "json_valid(payload_json").count - 1
+            #expect(selected == parsed, "payload_json returned in \(query)")
+            let paths = query.components(separatedBy: "json_extract(payload_json, '").dropFirst().map { $0.prefix { $0 != "'" } }
+            #expect(paths.allSatisfy { ["$.settledOverride", "$.settledAt"].contains(String($0)) }, "\(paths)")
         }
     }
 }

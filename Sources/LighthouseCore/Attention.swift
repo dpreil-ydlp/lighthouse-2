@@ -96,6 +96,9 @@ public enum AttentionRules {
                                        kind: .silentSubagent, threadId: thread.id, subagentId: sub.id, enteredAt: entered,
                                        label: "Subagent silent · \(sub.name)"))
         }
+        // SPEC 2.14: the owner settled the thread in T3, so whatever entered by then was addressed.
+        // Applies to every kind, subagents' items included; anything that enters later still shows.
+        if let settled = thread.settledAt { items.removeAll { $0.enteredAt <= settled } }
         return items
     }
 

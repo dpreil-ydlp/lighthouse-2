@@ -185,6 +185,9 @@ public struct SessionThread: Sendable, Hashable, Identifiable, Codable {
     public var asksOwnerAt: Date?
     /// Nudges Lighthouse sent in the current run (SPEC 2.11), set by the engine from the store.
     public var nudge: NudgeMark?
+    /// When the owner settled this T3 thread in T3 (SPEC 2.14). Attention that entered at or before
+    /// it is hidden; nil when the thread is not settled.
+    public var settledAt: Date?
 
     public init(
         id: String,

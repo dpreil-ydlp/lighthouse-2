@@ -4,6 +4,16 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.16 — 2026-11-04
+
+### Fixed
+- **Settled T3 Code threads leave Needs you.** Lighthouse now reads T3's
+  settled mark. Every item a thread raised up to the moment you settled it
+  stops counting toward Needs you, Gone quiet, the badge and notifications;
+  items raised after that still show. Settling a counted thread clears it on
+  the fast path. A settle also ends the nudge episode for a stall that began
+  before it.
+
 ## 0.0.15 — 2026-11-04
 
 ### Changed

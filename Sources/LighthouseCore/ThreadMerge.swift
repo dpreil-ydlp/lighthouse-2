@@ -230,6 +230,7 @@ public enum ThreadMerge {
                 repositoryURL: own.first?.repositoryURL, subagents: subagents, projectRootHint: project?.root,
                 pendingRequest: state == .waitingForOwner ? pending : nil, aliasIds: own.map(\.id))
             result.otherProviderTokens = other
+            result.settledAt = thread.settledAt
             // The provider transcripts that back this T3 thread (M8 summaries), newest alias first.
             result.transcriptPaths = own.flatMap(\.transcriptPaths)
             if let run, StateRules.t3ActiveRuns.contains(run.status) {

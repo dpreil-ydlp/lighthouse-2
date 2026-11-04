@@ -216,7 +216,7 @@ public actor Engine {
         if observe { threads = replies.mark(threads, now: now, judgments: replyJudgments) }
         if !nudges.isEmpty {
             for index in threads.indices {
-                if let record = NudgePolicy.current(nudges[threads[index].id], now: now), record.count > 0 {
+                if let record = NudgePolicy.current(nudges[threads[index].id], settledAt: threads[index].settledAt, now: now), record.count > 0 {
                     threads[index].nudge = NudgeMark(count: record.count, lastSentAt: record.lastSentAt, episodeKey: record.episodeKey)
                 }
             }

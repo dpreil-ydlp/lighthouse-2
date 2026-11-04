@@ -93,6 +93,22 @@ final class T3Fixture {
         exec("INSERT INTO orchestration_v2_projection_messages VALUES ('m-\(id)', \(Self.q(id)), '\(Fixture.bodyCanary) \(Fixture.secretCanary)')")
     }
 
+    /// T3's settle (SPEC 2.14): `settledOverride` 'settled' and `settledAt` in the thread payload.
+    func settle(_ id: String, at time: Date) {
+        exec("""
+            UPDATE orchestration_v2_projection_threads SET payload_json = json_set(payload_json,
+              '$.settledOverride', 'settled', '$.settledAt', '\(Self.iso(time))') WHERE thread_id = \(Self.q(id))
+            """)
+    }
+
+    /// T3's unsettle: the override is cleared and `unsettledAt` set; the old `settledAt` may remain.
+    func unsettle(_ id: String, at time: Date) {
+        exec("""
+            UPDATE orchestration_v2_projection_threads SET payload_json = json_set(payload_json,
+              '$.settledOverride', json('null'), '$.unsettledAt', '\(Self.iso(time))') WHERE thread_id = \(Self.q(id))
+            """)
+    }
+
     func mapping(thread: String, driver: String, nativeId: String) {
         let payload = #"{"nativeThreadRef":{"driver":"\#(driver)","nativeId":"\#(nativeId)","strength":"strong"},"goal":"\#(Fixture.bodyCanary)"}"#
         exec("""
