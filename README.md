@@ -54,7 +54,7 @@ The panel opens with a short welcome. It lists the sources it found and offers t
 
 ## What you see
 
-**Needs you.** A yellow **Needs you** tag marks each project and thread that is waiting on you. A thread counts when it asks for an approval or input, or when its turn has ended on a question, a choice or a task for you. A finished report or an optional offer does not count. Opening a project lists those threads first. Click a thread's tag to open it: T3 Code opens that thread; Claude and Codex open their app. On a project row, the tag opens the thread when only one is waiting, and opens the row when several are. When you answer or approve a counted T3 Code thread, its count clears in about a second; new waits show at the next full read, about once a minute.
+**Needs you.** A yellow **Needs you** tag marks each project and thread that is waiting on you. A thread counts when it asks for an approval or input, or when its turn has ended on a question, a choice or a task for you. A finished report or an optional offer does not count. Opening a project lists those threads first. Click a thread's tag to open it: T3 Code opens that thread; Claude and Codex open their app. On a project row, the tag opens the thread when only one is waiting, and opens the row when several are. Resolving a counted T3 Code request or resuming a reply hand-off clears that item in about a second. An alert after three failed nudges clears on the fast path when its run ends or the thread is deleted; progress recorded only in session logs waits for the regular full read. New waits show at the next full read, about once a minute.
 
 In the menu bar, the lighthouse shows the number of threads waiting on you in red, and nothing else.
 
