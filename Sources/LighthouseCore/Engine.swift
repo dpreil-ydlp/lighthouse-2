@@ -61,6 +61,39 @@ public actor Engine {
 
     /// Last successful T3 read (in memory only) and its time.
     private var t3State: T3State?
+    /// `T3PassResult.version` of `t3State`.
+    private var t3Version = 0
+    /// T3 thread ids behind the open Needs-you items of the last observed snapshot (SPEC 2.13):
+    /// parents and children with a request, reply hand-offs and exhausted nudges.
+    public private(set) var t3Subjects: Set<String> = []
+
+    /// Targeted T3 refresh of `t3Subjects` (SPEC 2.13). True when the T3 state changed; the caller
+    /// then publishes `resolvedSnapshot()`. `t3ReadAt` is left alone: only a full read renews it.
+    public func refreshT3Subjects() async -> Bool {
+        guard let t3, !t3Subjects.isEmpty, let result = await t3.refreshSubjects(t3Subjects),
+              result.version > t3Version else { return false }
+        t3State = result.state
+        t3Version = result.version
+        t3Index = T3MergeIndex(result.state)
+        changeCount += 1
+        return true
+    }
+
+    /// T3 ids of the threads and subagents behind open Needs-you items.
+    static func t3Subjects(of projects: [ProjectSummary]) -> Set<String> {
+        var ids = Set<String>()
+        for project in projects {
+            for item in project.attentionItems where item.kind == .waitingForOwner {
+                guard let thread = project.threads.first(where: { $0.id == item.threadId }) else { continue }
+                if let subId = item.subagentId {
+                    if let id = thread.subagents.first(where: { $0.id == subId })?.t3ThreadId { ids.insert(id) }
+                } else if let id = thread.t3ThreadId {
+                    ids.insert(id)
+                }
+            }
+        }
+        return ids
+    }
     /// Merge lookups of `t3State`, rebuilt only when a T3 read changed it (M7).
     private var t3Index: T3MergeIndex?
     private var t3ReadAt: Date?
@@ -106,9 +139,15 @@ public actor Engine {
         // Catch-up passes during indexing skip T3; full and FSEvents passes poll it (throttled).
         if let t3, scope != .pending {
             let result = await t3.pass(now: now)
-            // A pass that read nothing new returns the same state with `changed` false.
-            if result.changed || (t3Index == nil) != (result.state == nil) { t3Index = result.state.map(T3MergeIndex.init) }
-            t3State = result.state
+            // A pass that read nothing new returns the same state with `changed` false. A targeted
+            // refresh that finished while this pass was suspended may hold a newer version; keep it.
+            if result.version >= t3Version {
+                if result.changed || result.version != t3Version || (t3Index == nil) != (result.state == nil) {
+                    t3Index = result.state.map(T3MergeIndex.init)
+                }
+                t3State = result.state
+                t3Version = result.version
+            }
             t3ReadAt = result.readAt
             t3Status = result.status
             if result.changed { changeCount += 1 }
@@ -204,6 +243,7 @@ public actor Engine {
                                                observedSince: observedSince)
         // Incidents open now stay open across a later observation gap until evidence clears them (M9 R2).
         if observe {
+            t3Subjects = Self.t3Subjects(of: projects)
             observation.noteOpen(Set(projects.flatMap(\.attentionItems).compactMap { item in
                 switch item.kind {
                 case .stalledThread: item.threadId

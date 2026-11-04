@@ -4,6 +4,17 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.15 — 2026-11-04
+
+### Changed
+- **Faster Needs you for T3 Code.** While a T3 Code thread counts toward
+  Needs you, Lighthouse checks every 250 ms whether T3's database changed and
+  then re-reads only the counted threads (at most every 0.5 s). Answering or
+  approving in T3 Code clears the count in about a second instead of at the
+  next full read. Covers counted threads, their subagents, reply hand-offs and
+  exhausted nudges. New waits and all other data still come from the full read
+  every 60 s. Reads stay read-only and in place.
+
 ## 0.0.14 — 2026-11-04
 
 ### Added

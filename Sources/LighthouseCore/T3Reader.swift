@@ -257,6 +257,92 @@ public struct T3Reader: Sendable {
         return .success(state)
     }
 
+    // MARK: Targeted read (SPEC 2.13 fast path)
+
+    /// What one counted thread looks like now. `archived` is nil when the row is gone or deleted.
+    public struct Subject: Sendable, Hashable {
+        public var archived: Bool?
+        public var run: T3State.Run?
+        public var pending: [T3State.Request]
+    }
+
+    /// The statements of a targeted read, one id bound each. Each uses an index on `thread_id`
+    /// (primary key for threads; the runs `(thread_id, ordinal)` index; the requests' thread index),
+    /// so the cost depends on the number of counted threads, not on the size of the database.
+    static let subjectQueries: [String] = [
+        "SELECT archived_at FROM orchestration_v2_projection_threads WHERE thread_id = ?1 AND deleted_at IS NULL",
+        """
+        SELECT status, requested_at, completed_at,
+          (SELECT MAX(done.completed_at) FROM orchestration_v2_projection_runs done WHERE done.thread_id = ?1)
+        FROM orchestration_v2_projection_runs WHERE thread_id = ?1 ORDER BY ordinal DESC LIMIT 1
+        """,
+        "SELECT runtime_request_id, kind, created_at FROM orchestration_v2_projection_runtime_requests WHERE thread_id = ?1 AND status = 'pending'",
+    ]
+
+    /// Reads the current row, newest run and pending requests of `ids` only, in one read
+    /// transaction with the same preflight, open flags and deadline as `read()`. A missing table
+    /// or column fails the statement, so an unknown schema fails closed here too.
+    public func readSubjects(_ ids: [String]) -> Result<[String: Subject], T3ReadError> {
+        transaction { connection in
+            var subjects: [String: Subject] = [:]
+            let statements = try Self.subjectQueries.map { try connection.prepare($0) }
+            defer { statements.forEach { sqlite3_finalize($0) } }
+            for id in ids {
+                var subject = Subject(archived: nil, run: nil, pending: [])
+                try connection.rows(statements[0], bind: id) { r in subject.archived = r.text(0) != nil }
+                if subject.archived != nil {
+                    try connection.rows(statements[1], bind: id) { r in
+                        guard let status = r.text(0) else { return }
+                        subject.run = .init(status: status, requestedAt: Timestamps.parse(r.text(1)),
+                                            completedAt: Timestamps.parse(r.text(2)), lastCompletedAt: Timestamps.parse(r.text(3)))
+                    }
+                    try connection.rows(statements[2], bind: id) { r in
+                        guard let request = r.text(0), let kind = r.text(1) else { return }
+                        subject.pending.append(.init(id: request, threadId: id, kind: kind, createdAt: Timestamps.parse(r.text(2))))
+                    }
+                }
+                subjects[id] = subject
+            }
+            return subjects
+        }
+    }
+
+    /// Preflight, open read-only, run `body` inside one `BEGIN … ROLLBACK` read transaction.
+    func transaction<T>(_ body: (Connection) throws -> T) -> Result<T, T3ReadError> {
+        let start = clock()
+        let expired: @Sendable () -> Bool = { [clock, deadline] in clock() - start >= deadline }
+        if let failure = preflight() { return .failure(failure) }
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_URI | SQLITE_OPEN_NOFOLLOW | SQLITE_OPEN_NOMUTEX
+        guard sqlite3_open_v2(Self.uri(databasePath), &db, flags, nil) == SQLITE_OK, let db else {
+            let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "open failed"
+            sqlite3_close_v2(db)
+            return .failure(.sqlite(message))
+        }
+        defer { sqlite3_close_v2(db) }
+        let box = Unmanaged.passRetained(DeadlineBox(expired))
+        defer { box.release() }
+        sqlite3_progress_handler(db, 1000, { context in
+            guard let context else { return 1 }
+            return Unmanaged<DeadlineBox>.fromOpaque(context).takeUnretainedValue().expired() ? 1 : 0
+        }, box.toOpaque())
+        sqlite3_busy_timeout(db, 1000)
+        let connection = Connection(db: db, expired: expired)
+        do {
+            try connection.exec("PRAGMA query_only = ON")
+            try connection.exec("BEGIN")
+            defer { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) }
+            whileOpen?()
+            let value = try body(connection)
+            try connection.exec("COMMIT")
+            return .success(value)
+        } catch let error as T3ReadError {
+            return .failure(error)
+        } catch {
+            return .failure(.sqlite("\(error)"))
+        }
+    }
+
     /// T3 driver names → model provider. Other drivers carry no usage attribution and are not mapped.
     static func provider(_ driver: String?) -> Provider? {
         switch driver {
@@ -356,6 +442,30 @@ public struct T3Reader: Sendable {
 
         func exec(_ sql: String) throws {
             try rows(sql) { _ in }
+        }
+
+        func prepare(_ sql: String) throws -> OpaquePointer {
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
+                sqlite3_finalize(statement)
+                throw failure()
+            }
+            return statement
+        }
+
+        /// Runs a prepared statement with `?1` bound to `value`, then resets it for the next id.
+        func rows(_ statement: OpaquePointer, bind value: String, _ body: (Row) throws -> Void) throws {
+            if expired() { throw T3ReadError.deadline }
+            defer { sqlite3_reset(statement); sqlite3_clear_bindings(statement) }
+            let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            guard sqlite3_bind_text(statement, 1, value, -1, transient) == SQLITE_OK else { throw failure() }
+            while true {
+                let code = sqlite3_step(statement)
+                if code == SQLITE_DONE { break }
+                guard code == SQLITE_ROW else { throw failure() }
+                try body(Row(statement: statement))
+            }
+            if expired() { throw T3ReadError.deadline }
         }
 
         func rows(_ sql: String, _ body: (Row) throws -> Void) throws {

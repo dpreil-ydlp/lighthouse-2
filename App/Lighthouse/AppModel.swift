@@ -321,6 +321,18 @@ final class AppModel {
                 await Self.deliver(await engine.resolvedSnapshot(), to: self)
             }
         }
+        // SPEC 2.13: while T3 threads count toward Needs you, check every 250 ms whether T3 committed
+        // (two `stat` calls) and, if so, re-read only those threads, so a resolved request leaves the
+        // count within a second. With nothing counted the check returns at once.
+        Task(priority: .utility) { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard self != nil else { return }
+                if await engine.refreshT3Subjects() {
+                    await Self.deliver(await engine.resolvedSnapshot(), to: self)
+                }
+            }
+        }
     }
 
     /// Builds the shelf off the main thread, then publishes, so a click during indexing is not
