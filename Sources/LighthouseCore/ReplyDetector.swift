@@ -107,14 +107,16 @@ public enum ReplyDetector {
 public struct ReplyJudgment: Sendable, Hashable {
     public var activityAt: Date
     public var needsOwner: Bool
-    public init(activityAt: Date, needsOwner: Bool) {
+    public var continueWork: Bool?
+    public init(activityAt: Date, needsOwner: Bool, continueWork: Bool? = nil) {
         self.activityAt = activityAt
         self.needsOwner = needsOwner
+        self.continueWork = continueWork
     }
 
     /// Judgments from stored summaries that carry one.
     public static func from(_ summaries: [String: ThreadSummary]) -> [String: ReplyJudgment] {
-        summaries.compactMapValues { s in s.needsOwner.map { ReplyJudgment(activityAt: s.activityAt, needsOwner: $0) } }
+        summaries.compactMapValues { s in s.needsOwner.map { ReplyJudgment(activityAt: s.activityAt, needsOwner: $0, continueWork: s.continueWork) } }
     }
 }
 
@@ -135,6 +137,8 @@ public struct ReplyScanner: Sendable {
         let marked = threads.map { thread -> SessionThread in
             var thread = thread
             thread.asksOwnerAt = nil
+            thread.continueWorkAt = nil
+            thread.continueWorkJudgedAt = nil
             guard Self.eligible(thread, now: now) else { return thread }
             seen.insert(thread.id)
             let read: (agentLast: Bool, asks: Bool)
@@ -149,8 +153,15 @@ public struct ReplyScanner: Sendable {
             guard read.agentLast else { return thread }
             let waits: Bool
             if let judgments {
-                guard let judgment = judgments[thread.id], judgment.activityAt >= thread.lastActivityAt else { return thread }
+                guard let judgment = judgments[thread.id],
+                      judgment.activityAt.timeIntervalSince(thread.lastActivityAt) >= -0.000001 else { return thread }
                 waits = judgment.needsOwner
+                if judgment.continueWork != nil && abs(judgment.activityAt.timeIntervalSince(thread.lastActivityAt)) < 0.000001 {
+                    thread.continueWorkJudgedAt = thread.lastActivityAt
+                }
+                if !waits && judgment.continueWork == true && abs(judgment.activityAt.timeIntervalSince(thread.lastActivityAt)) < 0.000001 && thread.state == .idle {
+                    thread.continueWorkAt = thread.lastActivityAt
+                }
             } else {
                 waits = read.asks
             }

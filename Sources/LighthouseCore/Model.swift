@@ -183,6 +183,10 @@ public struct SessionThread: Sendable, Hashable, Identifiable, Codable {
     /// Set when the turn has ended and the agent's last message asks the owner for the next step
     /// (`ReplyDetector`, SPEC 2.10): that message's time. A yes/no result only; no text is kept.
     public var asksOwnerAt: Date?
+    /// Current summary evidence of authorized unfinished work; never transcript text.
+    public var continueWorkAt: Date?
+    /// Current continuation judgment, including a negative result. Nil means unknown.
+    public var continueWorkJudgedAt: Date?
     /// Nudges Lighthouse sent in the current run (SPEC 2.11), set by the engine from the store.
     public var nudge: NudgeMark?
     /// When the owner settled this T3 thread in T3 (SPEC 2.14). Attention that entered at or before

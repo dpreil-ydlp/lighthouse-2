@@ -143,7 +143,7 @@ struct NudgeSettings: View {
         } header: {
             Text("Nudges")
         } footer: {
-            Text("When a T3 Code thread has made no progress for 30 minutes, Lighthouse sends it a short message asking it to continue, up to \(NudgePolicy.limit) times, 15 minutes apart. If it is still stuck, the thread shows as Needs you. Subagents, Claude Code and Codex app threads are never nudged. Turning this on connects to T3 Code on this Mac with Full access.")
+            Text("When a T3 Code thread has made no progress for 30 minutes, including an idle parent whose summary identifies authorized unfinished work, Lighthouse sends it a short message asking it to continue, up to \(NudgePolicy.limit) times, 15 minutes apart. If it is still stuck, the thread shows as Needs you. Subagents, Claude Code and Codex app threads are never nudged. Turning this on connects to T3 Code on this Mac with Full access.")
                 .foregroundStyle(.secondary)
         }
         .onAppear { model.refreshNudgeStatus() }

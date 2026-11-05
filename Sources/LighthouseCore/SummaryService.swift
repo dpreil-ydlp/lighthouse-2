@@ -154,6 +154,9 @@ public actor SummaryService {
             last.activityAt = candidate.lastActivityAt
             summaries[candidate.threadId] = last
             store?.saveSummary(last)
+            if last.continueWork == nil {
+                failures[candidate.threadId] = SummaryFailure(activityAt: candidate.lastActivityAt, at: now)
+            }
             return finish(.unchanged)
         }
         guard let executable = locator.locate(provider) else { return finish(.cliMissing) }
@@ -179,9 +182,12 @@ public actor SummaryService {
         guard let (line1, line2) = SummaryText.lines(from: cleanAnswer) else { return finish(.emptyAnswer) }
         let summary = ThreadSummary(threadId: candidate.threadId, line1: line1, line2: line2, madeAt: now,
                                     activityAt: candidate.lastActivityAt, inputHash: request.inputHash, provider: provider, model: model,
-                                    needsOwner: SummaryText.needsOwner(from: cleanAnswer) ?? false)
+                                    needsOwner: SummaryText.needsOwner(from: cleanAnswer) ?? false,
+                                    continueWork: SummaryText.continueWork(from: cleanAnswer))
         summaries[candidate.threadId] = summary
-        failures[candidate.threadId] = nil
+        // Keep an incomplete judgment unknown, and use the existing backoff between cache checks.
+        failures[candidate.threadId] = summary.continueWork == nil
+            ? SummaryFailure(activityAt: candidate.lastActivityAt, at: now) : nil
         store?.saveSummary(summary)
         return finish(.made)
     }

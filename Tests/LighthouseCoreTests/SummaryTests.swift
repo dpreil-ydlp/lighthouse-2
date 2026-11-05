@@ -17,7 +17,7 @@ import Testing
     /// saved before it.
     static func summary(_ id: String = "claude:a", made: Date, activity: Date, hash: String = "h", needsOwner: Bool? = false) -> ThreadSummary {
         ThreadSummary(threadId: id, line1: "Fixing contrast", line2: nil, madeAt: made, activityAt: activity, inputHash: hash,
-                      provider: .claude, model: SummarySettings.defaultClaudeModel, needsOwner: needsOwner)
+                      provider: .claude, model: SummarySettings.defaultClaudeModel, needsOwner: needsOwner, continueWork: needsOwner == nil ? nil : false)
     }
 
     /// SPEC 2.10: a finished thread whose summary predates the judgment is due once; a running one is not.
@@ -489,9 +489,9 @@ import Testing
     }
 
     @Test func cliAnswersParse() {
-        #expect(SummaryCLI.answer(provider: .claude, stdout: FakeLauncher.claudeAnswer) == "Fixing dark mode contrast on recipe cards\nSwitching subtitle colour")
+        #expect(SummaryCLI.answer(provider: .claude, stdout: FakeLauncher.claudeAnswer) == "Fixing dark mode contrast on recipe cards\nSwitching subtitle colour\nNEEDS_OWNER: no\nCONTINUE_WORK: no")
         #expect(SummaryCLI.answer(provider: .claude, stdout: Data(#"{"type":"result","subtype":"error_max_turns","is_error":true,"result":"x"}"#.utf8)) == nil)
-        #expect(SummaryCLI.answer(provider: .chatgpt, stdout: FakeLauncher.codexAnswer) == "Fixing dark mode contrast on recipe cards")
+        #expect(SummaryCLI.answer(provider: .chatgpt, stdout: FakeLauncher.codexAnswer) == "Fixing dark mode contrast on recipe cards\nNEEDS_OWNER: no\nCONTINUE_WORK: no")
         #expect(SummaryCLI.answer(provider: .chatgpt, stdout: Data("{\"type\":\"turn.failed\"}\n".utf8)) == nil)
     }
 
@@ -730,8 +730,8 @@ final class CountingTranscript: TranscriptSource, @unchecked Sendable {
 }
 
 final class FakeLauncher: SummaryProcessLauncher, @unchecked Sendable {
-    static let claudeAnswer = Data(#"{"type":"result","subtype":"success","is_error":false,"result":"Fixing dark mode contrast on recipe cards\nSwitching subtitle colour"}"#.utf8)
-    static let codexAnswer = Data(("{\"type\":\"thread.started\"}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Fixing dark mode contrast on recipe cards\"}}\n"
+    static let claudeAnswer = Data(#"{"type":"result","subtype":"success","is_error":false,"result":"Fixing dark mode contrast on recipe cards\nSwitching subtitle colour\nNEEDS_OWNER: no\nCONTINUE_WORK: no"}"#.utf8)
+    static let codexAnswer = Data(("{\"type\":\"thread.started\"}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Fixing dark mode contrast on recipe cards\\nNEEDS_OWNER: no\\nCONTINUE_WORK: no\"}}\n"
                                    + "{\"type\":\"turn.completed\"}\n").utf8)
     private let lock = NSLock()
     private var _commands: [SummaryCommand] = []

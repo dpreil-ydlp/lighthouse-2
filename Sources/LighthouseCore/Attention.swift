@@ -77,7 +77,7 @@ public enum AttentionRules {
                                        threadId: thread.id, subagentId: sub.id, enteredAt: request.createdAt ?? sub.lastActivityAt,
                                        label: "\(request.label) · \(sub.name)"))
         }
-        if let reference = stallReference(of: thread, now: now, observedSince: observedSince) {
+        if let reference = stallReference(of: thread, now: now, observedSince: observedSince) ?? (NudgePolicy.idleWork(thread, now: now) && now.timeIntervalSince(observedSince(thread.id)) >= silenceAfter ? thread.lastActivityAt : nil) {
             let entered = reference.addingTimeInterval(silenceAfter)
             let nudged = thread.nudge.map { " · nudged \($0.count) of \(NudgePolicy.limit)" } ?? ""
             items.append(AttentionItem(id: "\(AttentionKind.stalledThread.rawValue)|\(thread.id)|\(Int(entered.timeIntervalSince1970))",

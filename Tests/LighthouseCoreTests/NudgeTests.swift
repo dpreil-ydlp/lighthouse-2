@@ -5,7 +5,7 @@ import Testing
 /// SPEC 2.11 (owner 2026-11-03): "a limit of 3 before declaring a thread in need of my help and only
 /// parent threads". Nudges go only to stalled T3 parent threads, 15 min apart, at most 3 per run.
 @Suite struct NudgePolicyTests {
-    let now = Date()
+    let now = Date(timeIntervalSince1970: 1800000000.1234567)
 
     func stalled(_ id: String = "th1", app: OwningApp = .t3, minutesQuiet: Double = 40, runStartedMinutesAgo: Double = 90) -> SessionThread {
         var t = SessionThread(id: "t3:\(id)", owningApp: app, providerIdentities: [ProviderIdentity(provider: .codex, nativeId: id)],
@@ -21,6 +21,179 @@ import Testing
         let identity = ProjectIdentity(root: "/P/a", name: "a", kind: .git)
         let read = threads.map { t -> SessionThread in var t = t; t.sourceReadAt = time ?? now; return t }
         return ShelfBuilder.summarize(threads: read, identities: Array(repeating: identity, count: threads.count), now: time ?? now)[0]
+    }
+
+    @Test func idleParentWithAuthorizedWorkUsesTheRealConsumer() {
+        var t = stalled()
+        t.state = .idle
+        t.continueWorkAt = t.lastActivityAt
+        #expect(NudgePolicy.next([project([t])], records: [:], now: now)?.number == 1)
+    }
+
+    @Test func idleExclusionsAndEpisodeSurviveRestAndReload() throws {
+        var t = stalled()
+        t.state = .idle
+        t.continueWorkAt = t.lastActivityAt
+        for variant in 0..<6 {
+            var excluded = t
+            switch variant {
+            case 0: excluded.continueWorkAt = nil // finished objective or no authority
+            case 1: excluded.state = .stopped
+            case 2: excluded.asksOwnerAt = now
+            case 3: excluded.settledAt = now
+            case 4: excluded.continueWorkAt = now.addingTimeInterval(-10000) // stale judgment
+            default: excluded.state = .waitingForOwner
+            }
+            #expect(NudgePolicy.next([project([excluded])], records: [:], now: now) == nil)
+        }
+        t.sourceReadAt = now.addingTimeInterval(-3600)
+        #expect(!NudgePolicy.idleWork(t, now: now))
+        t.sourceReadAt = now
+        let scratch = Scratch()
+        let store = try Store(url: scratch.url.appendingPathComponent("n.sqlite"))
+        let r = NudgeRecord(threadId: t.id, episodeStart: now.addingTimeInterval(-3600), count: 3,
+                            lastSentAt: now.addingTimeInterval(-1800), restingSince: now.addingTimeInterval(-1200))
+        try store.saveNudge(r)
+        let kept = NudgePolicy.reconcile(try store.loadNudges(), threads: [t], now: now).records
+        #expect(kept[t.id]?.count == 3)
+        #expect(NudgePolicy.next([project([t])], records: kept, now: now) == nil)
+        t.nudge = NudgeMark(count: 3, lastSentAt: r.lastSentAt, episodeKey: r.episodeKey)
+        #expect(AttentionRules.items(for: t, now: now).contains { $0.kind == .waitingForOwner })
+    }
+
+    @Test func summaryEvidenceFlowsThroughScannerAndStore() throws {
+        let scratch = Scratch()
+        let helper = ReplyDetectorTests()
+        let path = scratch.write("idle.jsonl", [helper.line("user", "Implement the feature and run its checks."),
+            helper.line("assistant", "The first step passed. I will now run the remaining checks.")].joined(separator: "\n") + "\n")
+        var t = stalled()
+        t.state = .idle
+        t.transcriptPaths = [path]
+        let store = try Store(url: scratch.url.appendingPathComponent("s.sqlite"))
+        store.saveSummary(ThreadSummary(threadId: t.id, line1: "Checks remain", line2: nil, madeAt: now,
+            activityAt: t.lastActivityAt, inputHash: "fixture", provider: .claude, model: "fixture",
+            needsOwner: false, continueWork: true))
+        var scanner = ReplyScanner()
+        let marked = scanner.mark([t], now: now, judgments: ReplyJudgment.from(store.loadSummaries()))
+        #expect(NudgePolicy.next([project(marked)], records: [:], now: now)?.t3ThreadId == "th1")
+        let noModel = scanner.mark([t], now: now)
+        #expect(NudgePolicy.next([project(noModel)], records: [:], now: now) == nil)
+        #expect(SummaryText.continueWork(from: "Checks remain\nCONTINUE_WORK: yes") == true)
+        #expect(SummaryText.lines(from: "Checks remain\nCONTINUE_WORK: yes\nNEEDS_OWNER: no")?.1 == nil)
+    }
+
+    @Test func delayedJudgmentPreservesEpisodeAcrossReload() throws {
+        let scratch = Scratch()
+        let helper = ReplyDetectorTests()
+        let path = scratch.write("delayed.jsonl", [helper.line("user", "Finish the authorized checks."),
+            helper.line("assistant", "The first check passed. More checks remain.")].joined(separator: "\n") + "\n")
+        var t = stalled()
+        t.state = .idle
+        t.transcriptPaths = [path]
+        let store = try Store(url: scratch.url.appendingPathComponent("delay.sqlite"))
+        let original = NudgeRecord(threadId: t.id, episodeStart: now.addingTimeInterval(-3600), count: 2,
+                                   lastSentAt: now.addingTimeInterval(-1800))
+        var scanner = ReplyScanner()
+        let unknown = scanner.mark([t], now: now, judgments: [:])[0]
+        let first = NudgePolicy.reconcile([t.id: original], threads: [unknown], now: now)
+        for record in first.records.values { try store.saveNudge(record) }
+        let later = now.addingTimeInterval(11 * 60)
+        let retained = NudgePolicy.reconcile(try store.loadNudges(), threads: [unknown], now: later)
+        #expect(retained.records[t.id]?.count == 2)
+        #expect(NudgePolicy.next([project([unknown], at: later)], records: retained.records, now: later) == nil)
+        let stale = scanner.mark([t], now: later, judgments: [t.id: ReplyJudgment(activityAt: t.lastActivityAt.addingTimeInterval(-1), needsOwner: false, continueWork: true)])[0]
+        #expect(stale.continueWorkJudgedAt == nil && stale.continueWorkAt == nil)
+        let negative = scanner.mark([t], now: later, judgments: [t.id: ReplyJudgment(activityAt: t.lastActivityAt, needsOwner: false, continueWork: false)])[0]
+        #expect(negative.continueWorkJudgedAt == t.lastActivityAt && negative.continueWorkAt == nil)
+        let positive = scanner.mark([t], now: later, judgments: [t.id: ReplyJudgment(activityAt: t.lastActivityAt, needsOwner: false, continueWork: true)])[0]
+        let resumed = NudgePolicy.next([project([positive], at: later)], records: retained.records, now: later)
+        #expect(resumed?.number == 3)
+        #expect(resumed?.episodeStart == original.episodeStart)
+        if let resumed {
+            let exhausted = NudgePolicy.attempted(resumed, at: later)
+            try store.saveNudge(exhausted)
+            let again = NudgePolicy.reconcile(try store.loadNudges(), threads: [unknown], now: later.addingTimeInterval(11 * 60))
+            #expect(again.records[t.id]?.count == 3)
+            #expect(NudgePolicy.next([project([positive], at: later)], records: again.records, now: later) == nil)
+        }
+    }
+
+    @Test(arguments: ["", "CONTINUE_WORK: maybe", "CONTINUE_WORK: no"])
+    func serviceJudgmentPreservesEpisode(marker: String) async throws {
+        let h = Harness()
+        let helper = ReplyDetectorTests()
+        let path = h.base.write("producer.jsonl", [helper.line("user", "Finish the authorized checks."),
+            helper.line("assistant", "The first check passed. More checks remain.")].joined(separator: "\n") + "\n")
+        var t = stalled()
+        t.state = .idle
+        t.transcriptPaths = [path]
+        let launcher = FakeLauncher()
+        launcher.stdout = try JSONSerialization.data(withJSONObject: ["type": "result", "subtype": "success", "is_error": false,
+            "result": "Checks remain\nNEEDS_OWNER: no\n" + marker])
+        let transcripts = CountingTranscript()
+        let service = h.service(transcripts: transcripts, launcher: launcher, now: now)
+        let candidate = SummaryTests.candidate(t.id, activity: t.lastActivityAt, paths: [path])
+        #expect(await service.step([candidate], now: now)?.outcome == .made)
+        let negative = marker == "CONTINUE_WORK: no"
+        let reloaded = try Store(url: h.dir.appendingPathComponent("lighthouse.sqlite"))
+        #expect(reloaded.loadSummaries()[t.id]?.continueWork == (negative ? false : nil))
+        var scanner = ReplyScanner()
+        let marked = scanner.mark([t], now: now, judgments: ReplyJudgment.from(reloaded.loadSummaries()))
+        let original = NudgeRecord(threadId: t.id, episodeStart: now.addingTimeInterval(-3600), count: 2,
+                                   lastSentAt: now.addingTimeInterval(-1800))
+        let first = NudgePolicy.reconcile([t.id: original], threads: marked, now: now)
+        for record in first.records.values { try h.store.saveNudge(record) }
+        let later = now.addingTimeInterval(660)
+        let retained = NudgePolicy.reconcile(try reloaded.loadNudges(), threads: marked, now: later)
+        #expect(NudgePolicy.next([project(marked, at: later)], records: retained.records, now: later) == nil)
+        #expect(negative ? retained.records.isEmpty : retained.records[t.id]?.count == 2)
+        // Missing markers must not select/read on every poll or call the CLI again for the same input.
+        for second in 1..<600 {
+            #expect(await service.step([candidate], now: now.addingTimeInterval(Double(second))) == nil)
+        }
+        #expect(transcripts.count == 1)
+        _ = await service.step([candidate], now: later)
+        let reads = transcripts.count
+        for second in 661..<1260 {
+            #expect(await service.step([candidate], now: now.addingTimeInterval(Double(second))) == nil)
+        }
+        #expect(transcripts.count == reads)
+        #expect(launcher.count == 1)
+        let restarted = h.service(transcripts: transcripts, launcher: launcher, now: later)
+        _ = await restarted.step([candidate], now: later)
+        #expect(await restarted.step([candidate], now: later.addingTimeInterval(1)) == nil)
+        #expect(launcher.count == 1)
+        // A changed request produces positive evidence through the same service, never injected judgments.
+        t.lastActivityAt = later.addingTimeInterval(-60)
+        launcher.stdout = try JSONSerialization.data(withJSONObject: ["type": "result", "subtype": "success", "is_error": false,
+            "result": "Continue authorized checks\nNEEDS_OWNER: no\nCONTINUE_WORK: yes"])
+        let changed = SummaryTests.candidate(t.id, activity: t.lastActivityAt, paths: [path + ".changed"])
+        #expect(await restarted.step([changed], now: later)?.outcome == .made)
+        let positive = scanner.mark([t], now: later, judgments: ReplyJudgment.from(reloaded.loadSummaries()))
+        let eligibleAt = later.addingTimeInterval(1800)
+        let resumed = NudgePolicy.next([project(positive, at: eligibleAt)], records: retained.records, now: eligibleAt)
+        #expect(resumed?.number == (negative ? 1 : 3))
+        if !negative { #expect(resumed?.episodeStart == original.episodeStart) }
+    }
+
+    @Test func negativeJudgmentAndStopsStillEndTheEpisode() {
+        var t = stalled()
+        t.state = .idle
+        let record = NudgeRecord(threadId: t.id, episodeStart: now.addingTimeInterval(-3600), count: 3,
+                                 lastSentAt: now.addingTimeInterval(-1800))
+        t.continueWorkJudgedAt = t.lastActivityAt
+        let first = NudgePolicy.reconcile([t.id: record], threads: [t], now: now)
+        #expect(first.records[t.id]?.restingSince == now)
+        #expect(NudgePolicy.reconcile(first.records, threads: [t], now: now.addingTimeInterval(600)).removed == [t.id])
+        t.continueWorkJudgedAt = nil
+        t.state = .stopped
+        let stopped = NudgePolicy.reconcile([t.id: record], threads: [t], now: now)
+        #expect(NudgePolicy.reconcile(stopped.records, threads: [t], now: now.addingTimeInterval(600)).removed == [t.id])
+        t.state = .idle
+        t.settledAt = now
+        #expect(NudgePolicy.reconcile([t.id: record], threads: [t], now: now).removed == [t.id])
+        t.settledAt = nil
+        #expect(NudgePolicy.reconcile([t.id: record], threads: [t], now: now.addingTimeInterval(86400)).removed == [t.id])
     }
 
     @Test func aStalledT3ParentGetsTheFirstNudge() {
@@ -82,6 +255,7 @@ import Testing
         let record = NudgeRecord(threadId: t.id, episodeStart: now.addingTimeInterval(-3600), count: 3, lastSentAt: now.addingTimeInterval(-1800))
         var idle = t
         idle.state = .idle
+        idle.continueWorkJudgedAt = idle.lastActivityAt // current negative judgment permits rest
         // Seen not running: noted, kept.
         let first = NudgePolicy.reconcile([t.id: record], threads: [idle], now: now)
         #expect(first.records[t.id]?.restingSince == now && first.changed.count == 1)

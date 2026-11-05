@@ -23,8 +23,20 @@ public enum NudgePolicy {
 
     /// The T3 thread to send to: a running T3-owned parent thread with a plain T3 thread id.
     public static func target(_ thread: SessionThread) -> String? {
-        guard thread.owningApp == .t3, thread.state == .running, let id = thread.t3ThreadId, T3Link.validThreadId(id) else { return nil }
+        guard thread.owningApp == .t3, (thread.state == .running || thread.continueWorkAt != nil && thread.state == .idle), let id = thread.t3ThreadId, T3Link.validThreadId(id) else { return nil }
         return id
+    }
+
+    /// Idle work requires current model evidence, fresh source data, and no owner or child dependency.
+    public static func idleWork(_ thread: SessionThread, now: Date) -> Bool {
+        guard thread.state == .idle, thread.owningApp == .t3,
+              thread.continueWorkAt == thread.lastActivityAt,
+              thread.pendingRequest == nil, thread.asksOwnerAt == nil, thread.settledAt == nil,
+              thread.busySince == nil, thread.subagents.allSatisfy({ $0.state != .running && $0.state != .waitingForOwner }),
+              now.timeIntervalSince(thread.sourceReadAt) <= StateRules.sourceStaleAfter,
+              now.timeIntervalSince(thread.lastActivityAt) >= AttentionRules.silenceAfter,
+              now.timeIntervalSince(thread.lastActivityAt) < ReplyDetector.window else { return false }
+        return true
     }
 
     /// The record when its episode is still open at `now`, else nil.
@@ -81,7 +93,10 @@ public enum NudgePolicy {
         for (id, record) in records {
             guard let thread = byId[id], current(record, settledAt: thread.settledAt, now: now) != nil else { removed.append(id); continue }
             var next = record
-            if thread.state == .running {
+            // A completed turn invalidates its prior judgment. Preserve the counter while
+            // its replacement is unavailable; only current positive evidence permits a send.
+            let judgmentPending = thread.state == .idle && thread.continueWorkJudgedAt != thread.lastActivityAt
+            if thread.state == .running || judgmentPending || (thread.continueWorkAt != nil && thread.continueWorkAt == thread.lastActivityAt) {
                 next.restingSince = nil
             } else if let resting = record.restingSince {
                 if now.timeIntervalSince(resting) >= restAfter { removed.append(id); continue }

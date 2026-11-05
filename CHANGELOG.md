@@ -4,6 +4,11 @@ All notable changes to Lighthouse 2. Newest first. Versions follow the app's
 `CFBundleShortVersionString`. Release notes for each version are in
 [docs/release-notes/](docs/release-notes/).
 
+## 0.0.17 — 2026-11-05
+
+### Changed
+- Idle T3 parents with current summary evidence of authorized unfinished work can receive bounded nudges. Requires nudges and summaries on. Completed objectives, stops, pending input and settled threads remain excluded. Idle work preserves the existing three-nudge episode.
+
 ## 0.0.16 — 2026-11-04
 
 ### Fixed
