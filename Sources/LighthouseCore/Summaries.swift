@@ -39,33 +39,28 @@ public enum SummaryProvider: String, Sendable, Hashable, CaseIterable, Codable {
 public struct SummarySettings: Sendable, Hashable {
     public static let defaultClaudeModel = "claude-haiku-5-5"
     public static let defaultChatGPTModel = "gpt-6-luna"
-    /// Contract M8: at most 30 calls per hour; the owner may set a lower cap.
-    public static let capRange = 1...30
 
     /// Off until the owner turns summaries on (M8 A1).
     public var provider: SummaryProvider = .off
     public var claudeModel = SummarySettings.defaultClaudeModel
     public var chatgptModel = SummarySettings.defaultChatGPTModel
-    public var hourlyCap = 30
 
     public init() {}
 
-    public init(provider: SummaryProvider, claudeModel: String = defaultClaudeModel, chatgptModel: String = defaultChatGPTModel, hourlyCap: Int = 30) {
+    public init(provider: SummaryProvider, claudeModel: String = defaultClaudeModel, chatgptModel: String = defaultChatGPTModel) {
         self.provider = provider
         self.claudeModel = claudeModel
         self.chatgptModel = chatgptModel
-        self.hourlyCap = hourlyCap
     }
 
     init(values: [String: String]) {
         provider = values["provider"].flatMap(SummaryProvider.init(rawValue:)) ?? .off
         claudeModel = values["model.claude"].flatMap { Self.validModel($0) ? $0 : nil } ?? Self.defaultClaudeModel
         chatgptModel = values["model.chatgpt"].flatMap { Self.validModel($0) ? $0 : nil } ?? Self.defaultChatGPTModel
-        hourlyCap = values["cap"].flatMap(Int.init).map(Self.clampCap) ?? 30
     }
 
     var values: [String: String] {
-        ["provider": provider.rawValue, "model.claude": claudeModel, "model.chatgpt": chatgptModel, "cap": String(hourlyCap)]
+        ["provider": provider.rawValue, "model.claude": claudeModel, "model.chatgpt": chatgptModel]
     }
 
     public var isOn: Bool { provider != .off }
@@ -87,7 +82,6 @@ public struct SummarySettings: Sendable, Hashable {
         }
     }
 
-    public static func clampCap(_ value: Int) -> Int { min(max(value, capRange.lowerBound), capRange.upperBound) }
 
     /// A model id is passed as one CLI argument; it may never look like an option or hold spaces.
     public static func validModel(_ id: String) -> Bool {
@@ -170,7 +164,7 @@ public struct SummaryCandidate: Sendable, Hashable {
     }
 }
 
-/// A failed attempt for a thread, kept in memory so a failing thread does not use up the hourly cap.
+/// A failed attempt for a thread, kept in memory to back off after a failed attempt.
 public struct SummaryFailure: Sendable, Hashable {
     public var activityAt: Date
     public var at: Date
@@ -186,8 +180,8 @@ public enum SummaryRules {
     public static let runningRefresh: TimeInterval = 600
     /// Each call times out after 60 s.
     public static let callTimeout: TimeInterval = 60
-    /// The cap counts calls started in the last hour.
-    public static let capWindow: TimeInterval = 3600
+    /// Call history covers the last hour for display only.
+    public static let callHistoryWindow: TimeInterval = 3600
     /// A failed thread is not retried for the same activity before this.
     public static let retryAfterFailure: TimeInterval = 600
 
@@ -221,14 +215,12 @@ public enum SummaryRules {
             }
     }
 
-    /// Calls started inside the cap window.
+    /// Calls started inside the display window.
     public static func callsInWindow(_ calls: [Date], now: Date) -> Int {
-        calls.filter { now.timeIntervalSince($0) < capWindow && $0 <= now }.count
+        calls.filter { now.timeIntervalSince($0) < callHistoryWindow && $0 <= now }.count
     }
 
-    public static func underCap(_ calls: [Date], cap: Int, now: Date) -> Bool {
-        callsInWindow(calls, now: now) < SummarySettings.clampCap(cap)
-    }
+
 }
 
 /// Removes known secret patterns before any text is sent (contract M8 Definitions: Input).

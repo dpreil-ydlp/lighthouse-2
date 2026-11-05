@@ -288,7 +288,7 @@ struct NotificationSettingsView: View {
     }
 }
 
-/// Settings › Summaries (M8, SPEC 2.9 §6.6): provider (Off / Claude / ChatGPT), model, hourly cap,
+/// Settings › Summaries (M8, SPEC 2.9 §6.6): provider (Off / Claude / ChatGPT), model, call history,
 /// what is sent, and recent activity (counts only).
 struct SummarySettingsView: View {
     @Environment(AppModel.self) private var model
@@ -332,12 +332,7 @@ struct SummarySettingsView: View {
                     LabeledContent("CLI", value: model.summaryCLI(settings.provider)
                         ?? "Not found")
                 }
-                Stepper("Max \(settings.hourlyCap) calls per hour", value: Binding(get: { settings.hourlyCap }, set: { cap in
-                    var next = settings
-                    next.hourlyCap = cap
-                    model.setSummarySettings(next)
-                }), in: SummarySettings.capRange)
-                LabeledContent("Calls in the last hour", value: "\(model.summaryStatus.callsLastHour) of \(settings.hourlyCap)")
+                LabeledContent("Calls in the last hour", value: "\(model.summaryStatus.callsLastHour)")
                 if let last = model.summaryStatus.last {
                     LabeledContent("Last result", value: Self.outcome(last))
                 }

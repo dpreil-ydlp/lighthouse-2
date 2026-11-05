@@ -350,7 +350,7 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
         }
     }
 
-    // MARK: Summaries (M8): text, input hash and metadata; call times for the hourly cap
+    // MARK: Summaries (M8): text, input hash and metadata; call times for usage display
 
     public func loadSummarySettings() throws -> SummarySettings {
         var values: [String: String] = [:]
@@ -362,6 +362,7 @@ public final class Store: @unchecked Sendable, CheckpointStore, NotificationLedg
 
     public func saveSummarySettings(_ settings: SummarySettings) throws {
         try transaction {
+            try run("DELETE FROM summary_settings WHERE key = 'cap'", [])
             for (key, value) in settings.values {
                 try run("INSERT OR REPLACE INTO summary_settings (key, value) VALUES (?, ?)", [key, value])
             }

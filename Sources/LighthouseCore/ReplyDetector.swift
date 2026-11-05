@@ -2,8 +2,8 @@ import Foundation
 
 /// "Waiting on you" without an approval or input event (SPEC 2.10). Many agents end a turn needing
 /// the owner (a question, a choice, a task to do) but raise no event. With summaries on, the summary
-/// model judges it from the conversation (`ThreadSummary.needsOwner`, see `ReplyJudgment`). With
-/// summaries off, this fallback reads the agent's last message locally against fixed wording rules:
+/// model judges it from the conversation (`ThreadSummary.needsOwner`, see `ReplyJudgment`). When the judgment is unavailable, or
+/// summaries are off, this fallback reads the agent's last message locally against fixed wording rules:
 /// no model call, nothing sent. Either way only a yes/no is kept (`SessionThread.asksOwnerAt`).
 public enum ReplyDetector {
     /// Only the end of the message counts: a question in the middle of a report is not a hand-off.
@@ -120,9 +120,9 @@ public struct ReplyJudgment: Sendable, Hashable {
     }
 }
 
-/// Marks finished threads that wait for the owner. `judgments` non-nil means summaries are on: only
-/// the model's judgment for the thread's current activity counts (none yet means not marked). Nil
-/// means summaries are off: the wording fallback reads each thread's last message once per change.
+/// Marks finished threads that wait for the owner. A current AI judgment takes precedence;
+/// absent or stale judgments use the existing local wording verdict. Continuation still requires
+/// a current positive AI judgment.
 public struct ReplyScanner: Sendable {
     /// Per thread at one activity time and newest transcript: whether the agent spoke last, and the
     /// wording verdict.
@@ -152,9 +152,8 @@ public struct ReplyScanner: Sendable {
             // The owner wrote last: the next move is the agent's, whatever the model said.
             guard read.agentLast else { return thread }
             let waits: Bool
-            if let judgments {
-                guard let judgment = judgments[thread.id],
-                      judgment.activityAt.timeIntervalSince(thread.lastActivityAt) >= -0.000001 else { return thread }
+            if let judgment = judgments?[thread.id],
+               judgment.activityAt.timeIntervalSince(thread.lastActivityAt) >= -0.000001 {
                 waits = judgment.needsOwner
                 if judgment.continueWork != nil && abs(judgment.activityAt.timeIntervalSince(thread.lastActivityAt)) < 0.000001 {
                     thread.continueWorkJudgedAt = thread.lastActivityAt

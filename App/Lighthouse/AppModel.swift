@@ -482,7 +482,7 @@ final class AppModel {
 
     /// One scheduling step after each published pass (every ≤ 70 s while idle). With summaries off
     /// nothing happens: no transcript read, no process. Due threads are summarized one at a time,
-    /// back to back, until none is due or the hourly cap is reached.
+    /// back to back, until none is due.
     func considerSummaries() {
         guard summarySettings.isOn, summaryTask == nil else { return }
         let candidates = SummaryCandidate.from(liveShelf.all)
@@ -532,13 +532,12 @@ final class AppModel {
 
     func setSummarySettings(_ settings: SummarySettings) {
         var settings = settings
-        settings.hourlyCap = SummarySettings.clampCap(settings.hourlyCap)
         if !SummarySettings.validModel(settings.claudeModel) { settings.claudeModel = summarySettings.claudeModel }
         if !SummarySettings.validModel(settings.chatgptModel) { settings.chatgptModel = summarySettings.chatgptModel }
         let turnedOn = settings.isOn && !summarySettings.isOn
         summarySettings = settings
         try? store?.saveSummarySettings(settings)
-        log.notice("summary settings provider=\(settings.provider.rawValue, privacy: .public) model=\(settings.model ?? "none", privacy: .public) cap=\(settings.hourlyCap, privacy: .public)")
+        log.notice("summary settings provider=\(settings.provider.rawValue, privacy: .public) model=\(settings.model ?? "none", privacy: .public)")
         let service: SummaryService = summaryService
         Task { [weak self] in
             await service.apply(settings)

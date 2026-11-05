@@ -155,28 +155,20 @@ import Testing
         #expect(launcher.count == 2)
     }
 
-    @Test func hourlyCapStopsCallsUntilTheWindowMoves() async {
+    @Test func moreThanThirtyCallsAndRestartHaveNoQuota() async {
         let h = Harness()
         let launcher = FakeLauncher()
-        let service = h.service(settings: SummarySettings(provider: .claude, hourlyCap: 3), launcher: launcher)
+        let settings = SummarySettings(values: ["provider": "claude", "cap": "1"])
+        let service = h.service(settings: settings, launcher: launcher)
         let start = Self.t0
-        var cands = (0..<6).map { Self.candidate("t\($0)", state: .idle, activity: start.addingTimeInterval(-100)) }
-        for i in 0..<6 { _ = await service.step(cands, now: start.addingTimeInterval(Double(i))) }
-        #expect(launcher.count == 3)
-        #expect(await service.callsInLastHour(now: start.addingTimeInterval(10)) == 3)
-        // 59 min later still capped; after the first call leaves the hour, one more.
-        _ = await service.step(cands, now: start.addingTimeInterval(3599))
-        #expect(launcher.count == 3)
-        _ = await service.step(cands, now: start.addingTimeInterval(3600.5))
-        #expect(launcher.count == 4)
-        // The cap persists across restart (calls are stored, not just counted in memory).
-        let restarted = h.service(settings: SummarySettings(provider: .claude, hourlyCap: 3), launcher: launcher, now: start.addingTimeInterval(3601))
-        cands = cands.map { var c = $0; c.lastActivityAt = start.addingTimeInterval(3540); return c }
-        _ = await restarted.step(cands, now: start.addingTimeInterval(3601))
-        #expect(launcher.count == 4)
-        // The cap can never be set above 30.
-        #expect(SummarySettings.clampCap(500) == 30)
-        #expect(SummarySettings.clampCap(0) == 1)
+        let cands = (0..<35).map { Self.candidate("t\($0)", state: .idle, activity: start.addingTimeInterval(-100)) }
+        for _ in 0..<35 { #expect(await service.step(cands, now: start)?.outcome == .made) }
+        #expect(launcher.count == 35)
+        #expect(await service.step(cands, now: start) == nil)
+        let restarted = h.service(settings: settings, launcher: launcher, now: start)
+        #expect(await restarted.step(cands, now: start) == nil)
+        #expect(await restarted.step([Self.candidate("new", state: .idle, activity: start.addingTimeInterval(-100))], now: start)?.outcome == .made)
+        #expect(launcher.count == 36)
     }
 
     @Test func callTimesOutAfterTheTimeoutAndCountsAsFailed() async {
@@ -264,7 +256,8 @@ import Testing
         #expect(SummarySettings().provider == .off)
         #expect(SummarySettings().claudeModel == "claude-haiku-5-5")
         #expect(SummarySettings().chatgptModel == "gpt-6-luna")
-        let custom = SummarySettings(provider: .chatgpt, claudeModel: "haiku", chatgptModel: "gpt-6-luna", hourlyCap: 12)
+        let custom = SummarySettings(provider: .chatgpt, claudeModel: "haiku", chatgptModel: "gpt-6-luna")
+        #expect(SummarySettings(values: ["cap": "1"]).values["cap"] == nil)
         try h.store.saveSummarySettings(custom)
         #expect(try h.store.loadSummarySettings() == custom)
         // A model id that looks like an option is never used.
@@ -577,7 +570,7 @@ import Testing
     }
 
     /// M8-E03: redaction that runs past its budget sends nothing: no process starts, nothing is
-    /// stored, the hourly cap is not used, and Settings can say why.
+    /// stored, no call is made, and Settings can say why.
     @Test func redactionPastItsBudgetSendsNothing() async {
         let h = Harness()
         let launcher = FakeLauncher()

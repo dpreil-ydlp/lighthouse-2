@@ -1,7 +1,7 @@
 import Foundation
 
 /// Persistence for summaries (M8 A2): summary text, input hash and metadata, call times for the
-/// hourly cap, and the user's settings. Never the request or any conversation text.
+/// usage display, and the user's settings. Never the request or any conversation text.
 public protocol SummaryStoring: Sendable {
     func loadSummaries() -> [String: ThreadSummary]
     func saveSummary(_ summary: ThreadSummary)
@@ -24,7 +24,7 @@ public struct FileTranscriptSource: TranscriptSource {
     public func tail(paths: [String]) -> String? { TranscriptTail.gather(paths: paths, access: access) }
 }
 
-/// Runs at most one summary call at a time, at most `hourlyCap` per hour, each with a 60 s timeout
+/// Runs at most one summary call at a time, each with a 60 s timeout
 /// (contract M8 Limits). With summaries off it returns at once: nothing is read, nothing starts.
 public actor SummaryService {
     /// Result of one scheduling step. Metadata only: no request, transcript or CLI output.
@@ -49,7 +49,7 @@ public actor SummaryService {
         public var outcome: Outcome
         public var provider: SummaryProvider
         public var model: String
-        /// True when a CLI process was started (counts against the hourly cap).
+        /// True when a CLI process was started.
         public var called: Bool
         public var seconds: Double
         public var exitCode: Int32?
@@ -90,7 +90,7 @@ public actor SummaryService {
         self.timeout = timeout
         self.redactionBudget = redactionBudget
         self.summaries = store?.loadSummaries() ?? [:]
-        self.calls = store?.loadSummaryCalls(since: now.addingTimeInterval(-SummaryRules.capWindow)) ?? []
+        self.calls = store?.loadSummaryCalls(since: now.addingTimeInterval(-SummaryRules.callHistoryWindow)) ?? []
     }
 
     /// The default scratch folder: empty, owned by Lighthouse, outside every source folder.
@@ -118,12 +118,11 @@ public actor SummaryService {
     }
 
     /// Picks the next due thread and summarizes it. Returns nil when nothing was attempted: off,
-    /// busy (single flight), at the hourly cap, or no thread due.
+    /// busy (single flight), or no thread due.
     public func step(_ candidates: [SummaryCandidate], now: Date = Date()) async -> Report? {
         guard settings.isOn, let model = settings.model, !busy else { return nil }
-        calls.removeAll { now.timeIntervalSince($0) >= SummaryRules.capWindow }
-        guard SummaryRules.underCap(calls, cap: settings.hourlyCap, now: now),
-              let candidate = SummaryRules.next(candidates, summaries: summaries, failures: failures, now: now) else { return nil }
+        calls.removeAll { now.timeIntervalSince($0) >= SummaryRules.callHistoryWindow }
+        guard let candidate = SummaryRules.next(candidates, summaries: summaries, failures: failures, now: now) else { return nil }
         busy = true
         defer { busy = false }
         let provider = settings.provider
@@ -165,7 +164,7 @@ public actor SummaryService {
             return finish(.failed)
         }
         calls.append(now)
-        store?.recordSummaryCall(at: now, pruneBefore: now.addingTimeInterval(-SummaryRules.capWindow))
+        store?.recordSummaryCall(at: now, pruneBefore: now.addingTimeInterval(-SummaryRules.callHistoryWindow))
         launches += 1
         let outcome = await launcher.run(command, input: Data(request.prompt.utf8), timeout: timeout)
         report.called = outcome.launched

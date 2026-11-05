@@ -99,7 +99,7 @@ import Testing
         #expect(scanner.mark([thread(path: path, state: .stopped, minutesAgo: 30, now: now)], now: now)[0].asksOwnerAt != nil)
     }
 
-    /// With summaries on, only the model's judgment for the current activity counts (SPEC 2.10).
+    /// With summaries on, a current model judgment overrides the wording rules (SPEC 2.10).
     @Test func modelJudgmentReplacesTheWordingRules() {
         let scratch = Scratch()
         let now = Date()
@@ -108,10 +108,10 @@ import Testing
         var scanner = ReplyScanner()
         // Model says no: not marked, even though the wording asks.
         #expect(scanner.mark([t], now: now, judgments: [t.id: ReplyJudgment(activityAt: t.lastActivityAt, needsOwner: false)])[0].asksOwnerAt == nil)
-        // No judgment yet: not marked (no wording guess while the model is on).
-        #expect(scanner.mark([t], now: now, judgments: [:])[0].asksOwnerAt == nil)
-        // A judgment from before the latest activity does not count.
-        #expect(scanner.mark([t], now: now, judgments: [t.id: ReplyJudgment(activityAt: t.lastActivityAt.addingTimeInterval(-60), needsOwner: true)])[0].asksOwnerAt == nil)
+        // No judgment yet: local detection keeps the request visible.
+        #expect(scanner.mark([t], now: now, judgments: [:])[0].asksOwnerAt != nil)
+        // A stale judgment does not suppress local detection.
+        #expect(scanner.mark([t], now: now, judgments: [t.id: ReplyJudgment(activityAt: t.lastActivityAt.addingTimeInterval(-60), needsOwner: true)])[0].asksOwnerAt != nil)
         // Model says yes for this activity: marked, whatever the wording.
         let done = thread(path: scratch.write("d.jsonl", line("assistant", "Sign-in page is open.") + "\n"), state: .idle, minutesAgo: 5, now: now)
         #expect(scanner.mark([done], now: now, judgments: [done.id: ReplyJudgment(activityAt: done.lastActivityAt, needsOwner: true)])[0].asksOwnerAt != nil)
@@ -122,6 +122,22 @@ import Testing
         // Running threads are never marked.
         let running = thread(path: path, state: .running, minutesAgo: 1, now: now)
         #expect(scanner.mark([running], now: now, judgments: [running.id: ReplyJudgment(activityAt: running.lastActivityAt, needsOwner: true)])[0].asksOwnerAt == nil)
+    }
+
+    @Test(arguments: [false, true]) func unavailableJudgmentUsesLocalSignInRequest(stale: Bool) {
+        let scratch = Scratch()
+        let now = Date()
+        let message = "Browser now works on the laptop. Platform is at the sign-in screen. Please sign in there with the existing example.com account. Then I can finish the account checks and generate the clips. No new audio files exist yet."
+        let path = scratch.write("signin.jsonl", line("assistant", message) + "\n")
+        let t = thread(path: path, state: .idle, minutesAgo: 3, now: now)
+        let judgments: [String: ReplyJudgment] = stale
+            ? [t.id: ReplyJudgment(activityAt: t.lastActivityAt.addingTimeInterval(-60), needsOwner: false, continueWork: true)] : [:]
+        var scanner = ReplyScanner()
+        let marked = scanner.mark([t], now: now, judgments: judgments)[0]
+        #expect(marked.asksOwnerAt == t.lastActivityAt)
+        #expect(AttentionRules.items(for: marked, now: now).contains { $0.kind == .waitingForOwner })
+        #expect(marked.continueWorkAt == nil)
+        #expect(marked.continueWorkJudgedAt == nil)
     }
 
     /// Codex transcripts count too.
